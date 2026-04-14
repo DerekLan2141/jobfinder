@@ -1,4 +1,3 @@
-let activeSource = "";
 let savedOnly = false;
 let searchQuery = "";
 let locationFilter = "";
@@ -12,7 +11,6 @@ function debounce(fn, ms) {
 
 async function fetchJobs() {
   const params = new URLSearchParams();
-  if (activeSource) params.set("source", activeSource);
   if (savedOnly) params.set("saved", "true");
   if (searchQuery) params.set("search", searchQuery);
   if (locationFilter) params.set("location", locationFilter);
@@ -214,15 +212,6 @@ async function loadFilters() {
     });
   } catch (_) {}
 }
-
-document.querySelectorAll(".filter-btn:not(#savedToggle)").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".filter-btn:not(#savedToggle)").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    activeSource = btn.dataset.source;
-    load();
-  });
-});
 
 document.getElementById("savedToggle").addEventListener("click", function () {
   savedOnly = !savedOnly;

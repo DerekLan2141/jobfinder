@@ -2,11 +2,17 @@
 LinkedIn scraper using Playwright.
 LinkedIn heavily rate-limits and blocks scrapers — this uses public job search
 (no login required) but may require occasional CAPTCHA handling.
+Note: Playwright is not available in Vercel deployments. Run scrapers locally.
 """
 import time
 import random
-from playwright.sync_api import sync_playwright
 from .base import matches_entry_level
+
+try:
+    from playwright.sync_api import sync_playwright
+    _PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    _PLAYWRIGHT_AVAILABLE = False
 
 SEARCH_QUERIES = [
     "new grad software engineer",
@@ -17,6 +23,10 @@ BASE_URL = "https://www.linkedin.com/jobs/search/?keywords={query}&f_E=1&f_JT=F"
 
 
 def scrape(max_jobs: int = 30) -> list[dict]:
+    if not _PLAYWRIGHT_AVAILABLE:
+        print("[linkedin] Playwright not installed — skipping. Install it locally to scrape LinkedIn.")
+        return []
+
     jobs = []
     seen_urls = set()
 

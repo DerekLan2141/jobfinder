@@ -3,11 +3,17 @@ Handshake scraper.
 Note: Handshake requires a student/alumni login for full access.
 This scraper attempts to use the public-facing job board where available.
 For full access, set HANDSHAKE_EMAIL and HANDSHAKE_PASSWORD in your .env file.
+Note: Playwright is not available in Vercel deployments. Run scrapers locally.
 """
 import time
 import os
-from playwright.sync_api import sync_playwright
 from .base import matches_entry_level
+
+try:
+    from playwright.sync_api import sync_playwright
+    _PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    _PLAYWRIGHT_AVAILABLE = False
 
 PUBLIC_SEARCH_URL = (
     "https://app.joinhandshake.com/stu/postings?"
@@ -17,6 +23,10 @@ PUBLIC_SEARCH_URL = (
 
 
 def scrape(max_jobs: int = 30) -> list[dict]:
+    if not _PLAYWRIGHT_AVAILABLE:
+        print("[handshake] Playwright not installed — skipping. Install it locally to scrape Handshake.")
+        return []
+
     jobs = []
     email = os.getenv("HANDSHAKE_EMAIL", "")
     password = os.getenv("HANDSHAKE_PASSWORD", "")

@@ -2,7 +2,8 @@ flask
 flask-sqlalchemy
 requests
 beautifulsoup4
-playwright
 apscheduler
 python-dotenv
 lxml
+google-generativeai
+psycopg2-binary

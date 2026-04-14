@@ -12,6 +12,10 @@
     <p class="subtitle">Entry-level &amp; new grad opportunities</p>
   </header>
 
+  <div class="search-bar">
+    <input type="text" id="searchInput" class="search-input" placeholder="Search jobs by title, company, or keyword..." />
+  </div>
+
   <div class="controls">
     <div class="filters">
       <button class="filter-btn active" data-source="">All</button>
@@ -19,6 +23,10 @@
       <button class="filter-btn" data-source="linkedin">LinkedIn</button>
       <button class="filter-btn" data-source="handshake">Handshake</button>
       <button class="filter-btn saved-toggle" id="savedToggle">Saved Only</button>
+      <input type="text" id="locationInput" class="location-input" placeholder="Location..." />
+      <select id="industrySelect" class="industry-select">
+        <option value="">All Industries</option>
+      </select>
     </div>
     <button class="scrape-btn" id="scrapeBtn">Refresh Jobs</button>
   </div>
@@ -45,12 +53,38 @@
         <span class="job-source badge"></span>
         <span class="job-location"></span>
         <span class="job-date"></span>
+        <span class="job-industry"></span>
       </div>
       <div class="job-keywords"></div>
       <div class="job-snippet"></div>
       <textarea class="job-notes" placeholder="Add notes..."></textarea>
     </div>
   </template>
+
+  <!-- Job Detail Modal -->
+  <div id="modal" class="modal-overlay hidden">
+    <div class="modal">
+      <button class="modal-close" id="modalClose">&#10005;</button>
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle"></h2>
+        <span class="modal-company" id="modalCompany"></span>
+        <div class="modal-meta">
+          <span class="badge" id="modalBadge"></span>
+          <span id="modalLocation"></span>
+          <span id="modalIndustry"></span>
+        </div>
+      </div>
+      <div class="modal-salary" id="modalSalary">
+        <strong>Est. Salary:</strong> <span id="modalSalaryValue">Analyzing...</span>
+      </div>
+      <div class="modal-description" id="modalDescription">
+        <div class="ai-loading">Analyzing with Gemini AI<span class="dots">...</span></div>
+      </div>
+      <div class="modal-actions">
+        <a class="btn-view-listing" id="modalLink" href="" target="_blank" rel="noopener">View Listing ↗</a>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>

@@ -18,6 +18,9 @@ class Job(db.Model):
     is_saved = db.Column(db.Boolean, default=False)
     is_dismissed = db.Column(db.Boolean, default=False)
     notes = db.Column(db.Text)
+    industry = db.Column(db.String(100))
+    ai_description = db.Column(db.Text)
+    ai_salary_estimate = db.Column(db.String(200))
 
     def to_dict(self):
         return {
@@ -34,4 +37,7 @@ class Job(db.Model):
             "is_saved": self.is_saved,
             "is_dismissed": self.is_dismissed,
             "notes": self.notes,
+            "industry": self.industry,
+            "ai_description": self.ai_description,
+            "ai_salary_estimate": self.ai_salary_estimate,
         }

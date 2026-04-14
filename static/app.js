@@ -27,7 +27,7 @@ function renderJobs(jobs) {
   list.innerHTML = "";
 
   if (!jobs.length) {
-    list.innerHTML = '<div class="empty-state"><strong>No jobs found</strong>Click "Refresh Jobs" to scrape for new listings.</div>';
+    list.innerHTML = '<p class="loading">No jobs found. Click "Refresh Jobs" to scrape.</p>';
     return;
   }
 
@@ -194,7 +194,7 @@ function showStatus(msg, type) {
 }
 
 async function load() {
-  document.getElementById("jobList").innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><p>Loading jobs...</p></div>';
+  document.getElementById("jobList").innerHTML = '<p class="loading">Loading jobs...</p>';
   const jobs = await fetchJobs();
   renderJobs(jobs);
 }

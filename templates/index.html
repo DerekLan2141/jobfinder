@@ -9,52 +9,33 @@
 <body>
 
   <header>
-    <div class="header-top">
-      <div class="header-brand">
-        <h1>JobFinder</h1>
-        <p class="subtitle">Entry-level &amp; new grad opportunities</p>
-      </div>
-      <button class="scrape-btn" id="scrapeBtn">
-        <span class="scrape-icon">↻</span> Refresh Jobs
-      </button>
-    </div>
-    <div class="header-search">
-      <span class="search-icon">&#128269;</span>
-      <input type="text" id="searchInput" class="search-input" placeholder="Search by title, company, or keyword..." />
-    </div>
+    <h1>JobFinder</h1>
+    <p class="subtitle">Entry-level &amp; new grad opportunities</p>
   </header>
+
+  <div class="search-bar">
+    <input type="text" id="searchInput" class="search-input" placeholder="Search jobs by title, company, or keyword..." />
+  </div>
 
   <div class="controls">
     <div class="filters">
-      <div class="filter-group">
-        <button class="filter-btn active" data-source="">All</button>
-        <button class="filter-btn" data-source="builtin">Builtin</button>
-        <button class="filter-btn" data-source="linkedin">LinkedIn</button>
-        <button class="filter-btn" data-source="handshake">Handshake</button>
-        <button class="filter-btn saved-toggle" id="savedToggle">&#9829; Saved</button>
-      </div>
-      <div class="filter-group filter-group--right">
-        <div class="filter-input-wrap">
-          <span class="filter-icon">&#128205;</span>
-          <input type="text" id="locationInput" class="filter-input" placeholder="Location" />
-        </div>
-        <div class="filter-input-wrap">
-          <span class="filter-icon">&#128188;</span>
-          <select id="industrySelect" class="filter-input filter-select">
-            <option value="">All Industries</option>
-          </select>
-        </div>
-      </div>
+      <button class="filter-btn active" data-source="">All</button>
+      <button class="filter-btn" data-source="builtin">Builtin</button>
+      <button class="filter-btn" data-source="linkedin">LinkedIn</button>
+      <button class="filter-btn" data-source="handshake">Handshake</button>
+      <button class="filter-btn saved-toggle" id="savedToggle">Saved Only</button>
+      <input type="text" id="locationInput" class="location-input" placeholder="Location..." />
+      <select id="industrySelect" class="industry-select">
+        <option value="">All Industries</option>
+      </select>
     </div>
+    <button class="scrape-btn" id="scrapeBtn">Refresh Jobs</button>
   </div>
 
   <div id="status" class="status hidden"></div>
 
   <div id="jobList" class="job-list">
-    <div class="loading-state">
-      <div class="loading-spinner"></div>
-      <p>Loading jobs...</p>
-    </div>
+    <p class="loading">Loading jobs...</p>
   </div>
 
   <template id="jobCard">
@@ -77,47 +58,31 @@
       </div>
       <div class="job-keywords"></div>
       <div class="job-snippet"></div>
-      <div class="job-footer">
-        <textarea class="job-notes" placeholder="Add notes..."></textarea>
-        <span class="card-hint">Click to view details</span>
-      </div>
+      <textarea class="job-notes" placeholder="Add notes..."></textarea>
     </div>
   </template>
 
   <!-- Job Detail Modal -->
   <div id="modal" class="modal-overlay hidden">
     <div class="modal">
-      <button class="modal-close" id="modalClose" title="Close">&#10005;</button>
-
+      <button class="modal-close" id="modalClose">&#10005;</button>
       <div class="modal-header">
-        <div class="modal-title-row">
-          <h2 class="modal-title" id="modalTitle"></h2>
-          <span class="badge modal-badge" id="modalBadge"></span>
-        </div>
+        <h2 class="modal-title" id="modalTitle"></h2>
         <span class="modal-company" id="modalCompany"></span>
         <div class="modal-meta">
-          <span class="modal-meta-item" id="modalLocation"></span>
-          <span class="modal-meta-item modal-industry" id="modalIndustry"></span>
+          <span class="badge" id="modalBadge"></span>
+          <span id="modalLocation"></span>
+          <span id="modalIndustry"></span>
         </div>
       </div>
-
       <div class="modal-salary" id="modalSalary">
-        <div class="salary-label">Estimated Salary</div>
-        <div class="salary-value" id="modalSalaryValue">Analyzing...</div>
+        <strong>Est. Salary:</strong> <span id="modalSalaryValue">Analyzing...</span>
       </div>
-
-      <div class="modal-section-label">AI Summary</div>
       <div class="modal-description" id="modalDescription">
-        <div class="ai-loading">
-          <div class="ai-spinner"></div>
-          Analyzing with Gemini AI...
-        </div>
+        <div class="ai-loading">Analyzing with Gemini AI...</div>
       </div>
-
       <div class="modal-actions">
-        <a class="btn-view-listing" id="modalLink" href="" target="_blank" rel="noopener">
-          View Full Listing ↗
-        </a>
+        <a class="btn-view-listing" id="modalLink" href="" target="_blank" rel="noopener">View Listing ↗</a>
       </div>
     </div>
   </div>

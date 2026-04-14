@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobFinder — Entry Level Jobs</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>JobFinder</h1>
+    <p class="subtitle">Entry-level &amp; new grad opportunities</p>
+  </header>
+
+  <div class="controls">
+    <div class="filters">
+      <button class="filter-btn active" data-source="">All</button>
+      <button class="filter-btn" data-source="builtin">Builtin</button>
+      <button class="filter-btn" data-source="linkedin">LinkedIn</button>
+      <button class="filter-btn" data-source="handshake">Handshake</button>
+      <button class="filter-btn saved-toggle" id="savedToggle">Saved Only</button>
+    </div>
+    <button class="scrape-btn" id="scrapeBtn">Refresh Jobs</button>
+  </div>
+
+  <div id="status" class="status hidden"></div>
+
+  <div id="jobList" class="job-list">
+    <p class="loading">Loading jobs...</p>
+  </div>
+
+  <template id="jobCard">
+    <div class="job-card" data-id="">
+      <div class="job-header">
+        <div class="job-title-block">
+          <a class="job-title" href="" target="_blank" rel="noopener"></a>
+          <span class="job-company"></span>
+        </div>
+        <div class="job-actions">
+          <button class="btn-save" title="Save job">&#9825;</button>
+          <button class="btn-dismiss" title="Dismiss">&#10005;</button>
+        </div>
+      </div>
+      <div class="job-meta">
+        <span class="job-source badge"></span>
+        <span class="job-location"></span>
+        <span class="job-date"></span>
+      </div>
+      <div class="job-keywords"></div>
+      <div class="job-snippet"></div>
+      <textarea class="job-notes" placeholder="Add notes..."></textarea>
+    </div>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

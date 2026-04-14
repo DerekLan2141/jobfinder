@@ -1,0 +1,153 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f5f7fa;
+  color: #222;
+  min-height: 100vh;
+}
+
+header {
+  background: #1a1a2e;
+  color: white;
+  padding: 1.5rem 2rem;
+}
+
+header h1 { font-size: 1.8rem; font-weight: 700; }
+header .subtitle { color: #aab; font-size: 0.9rem; margin-top: 0.25rem; }
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: white;
+  border-bottom: 1px solid #e0e0e0;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.filters { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.filter-btn {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.15s;
+}
+.filter-btn:hover { border-color: #555; }
+.filter-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+
+.scrape-btn {
+  padding: 0.5rem 1.2rem;
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.scrape-btn:hover { background: #4338ca; }
+.scrape-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+
+.status {
+  margin: 1rem 2rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+.status.success { background: #d1fae5; color: #065f46; }
+.status.error { background: #fee2e2; color: #991b1b; }
+.status.hidden { display: none; }
+
+.job-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 1rem;
+  padding: 1.5rem 2rem;
+}
+
+.loading { grid-column: 1/-1; text-align: center; color: #888; padding: 3rem; }
+
+.job-card {
+  background: white;
+  border-radius: 10px;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: box-shadow 0.15s;
+}
+.job-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.job-card.saved { border-left: 3px solid #4f46e5; }
+
+.job-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+.job-title-block { flex: 1; }
+.job-title { font-weight: 600; font-size: 1rem; color: #1a1a2e; text-decoration: none; }
+.job-title:hover { text-decoration: underline; }
+.job-company { display: block; font-size: 0.85rem; color: #555; margin-top: 0.15rem; }
+
+.job-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+.job-actions button {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.btn-save:hover { border-color: #4f46e5; color: #4f46e5; }
+.btn-save.saved { background: #4f46e5; color: white; border-color: #4f46e5; }
+.btn-dismiss:hover { border-color: #ef4444; color: #ef4444; }
+
+.job-meta { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.8rem; color: #666; }
+.badge {
+  padding: 0.15rem 0.55rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.badge-builtin { background: #fef3c7; color: #92400e; }
+.badge-linkedin { background: #dbeafe; color: #1e40af; }
+.badge-handshake { background: #d1fae5; color: #065f46; }
+
+.job-keywords { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.keyword-tag {
+  background: #ede9fe;
+  color: #5b21b6;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+}
+
+.job-snippet { font-size: 0.82rem; color: #555; line-height: 1.5; }
+
+.job-notes {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  resize: vertical;
+  font-family: inherit;
+  color: #333;
+  background: #fafafa;
+}
+.job-notes:focus { outline: none; border-color: #4f46e5; }
+
+@media (max-width: 600px) {
+  .job-list { grid-template-columns: 1fr; padding: 1rem; }
+  .controls { padding: 0.75rem 1rem; }
+}

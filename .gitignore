@@ -27,3 +27,5 @@ playwright/.local-browsers/
 # IDE
 .vscode/
 .idea/
+.vercel
+.env*.local

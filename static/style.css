@@ -158,9 +158,10 @@ header .subtitle { color: #aab; font-size: 0.9rem; margin-top: 0.25rem; }
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
-.badge-builtin  { background: #fef3c7; color: #92400e; }
-.badge-linkedin { background: #dbeafe; color: #1e40af; }
-.badge-handshake{ background: #d1fae5; color: #065f46; }
+.badge-arbeitnow  { background: #fef3c7; color: #92400e; }
+.badge-remoteok   { background: #d1fae5; color: #065f46; }
+.badge-linkedin   { background: #dbeafe; color: #1e40af; }
+.badge-handshake  { background: #ede9fe; color: #5b21b6; }
 
 .job-industry {
   font-size: 0.72rem;

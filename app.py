@@ -5,7 +5,7 @@ from flask import Flask, render_template, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from models import db, Job
-from scrapers import builtin, linkedin, handshake
+from scrapers import arbeitnow, remoteok, linkedin, handshake
 
 load_dotenv()
 
@@ -55,7 +55,8 @@ def run_scrapers():
     """Run all scrapers and save new jobs to the database."""
     print("[scheduler] Running scrapers...")
     scrapers = [
-        ("builtin", builtin.scrape),
+        ("arbeitnow", arbeitnow.scrape),
+        ("remoteok", remoteok.scrape),
         ("linkedin", linkedin.scrape),
         ("handshake", handshake.scrape),
     ]

@@ -1,89 +1,95 @@
 """
 Handshake scraper.
-Note: Handshake requires a student/alumni login for full access.
-This scraper attempts to use the public-facing job board where available.
-For full access, set HANDSHAKE_EMAIL and HANDSHAKE_PASSWORD in your .env file.
-Note: Playwright is not available in Vercel deployments. Run scrapers locally.
+Uses the public-facing Handshake job search page (no login required for public listings).
+Full access requires HANDSHAKE_EMAIL / HANDSHAKE_PASSWORD env vars; without them
+only publicly visible postings are returned.
 """
-import time
-import os
-from .base import matches_entry_level
+import json
+import requests
+from bs4 import BeautifulSoup
+from .base import matches_entry_level, is_us_location
 
-try:
-    from playwright.sync_api import sync_playwright
-    _PLAYWRIGHT_AVAILABLE = True
-except ImportError:
-    _PLAYWRIGHT_AVAILABLE = False
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/123.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Referer": "https://joinhandshake.com/",
+}
 
-PUBLIC_SEARCH_URL = (
-    "https://app.joinhandshake.com/stu/postings?"
-    "page=1&per_page=25&sort_direction=desc&sort_column=default"
-    "&job_type_names[]=Full-Time&employment_type_names[]=Entry+Level"
-)
+# Public search endpoint (unauthenticated)
+SEARCH_URL = "https://joinhandshake.com/api/jobs/search"
+
+PARAMS_BASE = {
+    "per_page": 25,
+    "sort_direction": "desc",
+    "sort_column": "default",
+    "job_type_names[]": "Full-Time",
+    "employment_type_names[]": "Entry Level",
+    "location": "United States",
+}
+
+KEYWORDS = ["software engineer", "software developer", "data analyst", "product manager"]
 
 
-def scrape(max_jobs: int = 30) -> list[dict]:
-    if not _PLAYWRIGHT_AVAILABLE:
-        print("[handshake] Playwright not installed — skipping. Install it locally to scrape Handshake.")
-        return []
-
+def scrape(max_pages: int = 3) -> list[dict]:
     jobs = []
-    email = os.getenv("HANDSHAKE_EMAIL", "")
-    password = os.getenv("HANDSHAKE_PASSWORD", "")
+    seen_urls: set[str] = set()
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
+    for keyword in KEYWORDS:
+        for page in range(1, max_pages + 1):
+            params = {**PARAMS_BASE, "page": page, "query": keyword}
+            try:
+                resp = requests.get(SEARCH_URL, params=params, headers=HEADERS, timeout=15)
+                if resp.status_code in (401, 403):
+                    print("[handshake] Public API requires auth — skipping. Set HANDSHAKE_EMAIL/PASSWORD to enable.")
+                    return jobs
+                resp.raise_for_status()
+                data = resp.json()
+            except Exception as e:
+                print(f"[handshake] Error for keyword '{keyword}' page {page}: {e}")
+                break
 
-        try:
-            page.goto("https://app.joinhandshake.com/login", timeout=30000)
-            time.sleep(2)
+            items = data.get("jobs") or data.get("results") or []
+            if not items:
+                break
 
-            if email and password:
-                page.fill("input[name='email']", email)
-                page.fill("input[name='password']", password)
-                page.click("button[type='submit']")
-                time.sleep(3)
-
-            page.goto(PUBLIC_SEARCH_URL, timeout=30000)
-            time.sleep(3)
-
-            cards = page.query_selector_all("div[data-hook='jobs-card']")
-            for card in cards[:max_jobs]:
+            for job in items:
                 try:
-                    title_el = card.query_selector("a[data-hook='jobs-card-title']")
-                    company_el = card.query_selector("span[data-hook='employer-name']")
-                    location_el = card.query_selector("span[data-hook='job-location']")
+                    title   = job.get("title", "").strip()
+                    company = (job.get("employer") or {}).get("name", "").strip()
+                    location = job.get("job_location") or job.get("location") or ""
+                    if isinstance(location, dict):
+                        location = location.get("name", "")
+                    job_id  = job.get("id", "")
+                    job_url = f"https://app.joinhandshake.com/stu/jobs/{job_id}" if job_id else ""
 
-                    title = title_el.inner_text().strip() if title_el else ""
-                    company = company_el.inner_text().strip() if company_el else ""
-                    location = location_el.inner_text().strip() if location_el else ""
-                    href = title_el.get_attribute("href") if title_el else ""
-                    job_url = f"https://app.joinhandshake.com{href}" if href else ""
-
-                    if not title or not job_url:
+                    if not title or not job_url or job_url in seen_urls:
                         continue
+                    if not is_us_location(str(location)):
+                        continue
+                    seen_urls.add(job_url)
 
                     matched = matches_entry_level(f"{title} entry level new grad")
 
                     jobs.append({
                         "title": title,
                         "company": company,
-                        "location": location,
+                        "location": str(location),
                         "url": job_url,
                         "source": "handshake",
-                        "description_snippet": "",
+                        "description_snippet": job.get("description", "")[:500],
                         "matched_keywords": ", ".join(matched) if matched else "entry level",
-                        "date_posted": "",
+                        "date_posted": job.get("created_at", ""),
                     })
                 except Exception as e:
-                    print(f"[handshake] Error parsing card: {e}")
+                    print(f"[handshake] Error parsing job: {e}")
                     continue
 
-        except Exception as e:
-            print(f"[handshake] Scrape failed: {e}")
-        finally:
-            browser.close()
+            if len(items) < 25:
+                break  # last page
 
+    print(f"[handshake] Found {len(jobs)} jobs")
     return jobs

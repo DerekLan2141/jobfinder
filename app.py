@@ -146,7 +146,7 @@ def analyze_job(job_id):
         import google.generativeai as genai
 
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash-preview-04-17")
 
         prompt = f"""You are a job listing analyst. Analyze this job posting and respond with ONLY valid JSON — no markdown, no code blocks.
 
@@ -236,7 +236,7 @@ def upload_resume():
 
         import google.generativeai as genai
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash-preview-04-17")
 
         prompt = f"""Analyze this resume and extract key information. Return ONLY valid JSON — no markdown, no code blocks.
 

@@ -2,6 +2,7 @@ let savedOnly = false;
 let searchQuery = "";
 let locationFilter = "";
 let industryFilter = "";
+let resumeProfile = JSON.parse(localStorage.getItem("resumeProfile") || "null");
 
 // Debounce helper
 function debounce(fn, ms) {
@@ -20,6 +21,15 @@ async function fetchJobs() {
   return await res.json();
 }
 
+function calculateMatchScore(job, profile) {
+  if (!profile || !profile.skills || profile.skills.length === 0) return null;
+  const skills = profile.skills.map(s => s.toLowerCase());
+  const jobText = [job.title, job.description_snippet, job.matched_keywords, job.industry]
+    .join(" ").toLowerCase();
+  const matched = skills.filter(s => jobText.includes(s));
+  return Math.round((matched.length / skills.length) * 100);
+}
+
 function renderJobs(jobs) {
   const list = document.getElementById("jobList");
   list.innerHTML = "";
@@ -27,6 +37,11 @@ function renderJobs(jobs) {
   if (!jobs.length) {
     list.innerHTML = '<p class="loading">No jobs found. Click "Refresh Jobs" to scrape.</p>';
     return;
+  }
+
+  // Sort by match score when resume is loaded
+  if (resumeProfile) {
+    jobs = [...jobs].sort((a, b) => calculateMatchScore(b, resumeProfile) - calculateMatchScore(a, resumeProfile));
   }
 
   const template = document.getElementById("jobCard");
@@ -49,6 +64,15 @@ function renderJobs(jobs) {
       industryEl.textContent = job.industry;
     } else {
       industryEl.style.display = "none";
+    }
+
+    const matchEl = card.querySelector(".job-match");
+    if (resumeProfile) {
+      const score = calculateMatchScore(job, resumeProfile);
+      matchEl.textContent = `${score}% match`;
+      matchEl.className = `job-match ${score >= 70 ? "match-high" : score >= 40 ? "match-mid" : "match-low"}`;
+    } else {
+      matchEl.classList.add("hidden");
     }
 
     const sourceBadge = card.querySelector(".job-source");
@@ -251,5 +275,68 @@ document.getElementById("scrapeBtn").addEventListener("click", async function ()
   }
 });
 
+// ── Resume upload ──────────────────────────────────────────────────────────
+
+function syncResumeUI() {
+  const label = document.getElementById("resumeLabel");
+  const tag   = document.getElementById("resumeTag");
+  const clear = document.getElementById("resumeClear");
+  if (resumeProfile) {
+    label.textContent = "📄 Change Resume";
+    label.classList.add("loaded");
+    tag.textContent = `${resumeProfile.skills.length} skills detected`;
+    tag.classList.remove("hidden");
+    clear.classList.remove("hidden");
+  } else {
+    label.textContent = "📄 Upload Resume";
+    label.classList.remove("loaded");
+    tag.classList.add("hidden");
+    clear.classList.add("hidden");
+  }
+}
+
+document.getElementById("resumeInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const label = document.getElementById("resumeLabel");
+  label.textContent = "Analyzing...";
+  label.classList.add("loading");
+
+  const formData = new FormData();
+  formData.append("resume", file);
+
+  try {
+    const res = await fetch("/api/resume/upload", { method: "POST", body: formData });
+    const data = await res.json();
+
+    if (data.error) {
+      showStatus(`Resume error: ${data.error}`, "error");
+      label.classList.remove("loading");
+      syncResumeUI();
+      return;
+    }
+
+    resumeProfile = data;
+    localStorage.setItem("resumeProfile", JSON.stringify(data));
+    showStatus(`Resume analyzed — ${data.skills.length} skills found. Jobs sorted by match.`, "success");
+    syncResumeUI();
+    load();
+  } catch {
+    showStatus("Failed to analyze resume. Try again.", "error");
+  } finally {
+    label.classList.remove("loading");
+    e.target.value = "";
+  }
+});
+
+document.getElementById("resumeClear").addEventListener("click", () => {
+  resumeProfile = null;
+  localStorage.removeItem("resumeProfile");
+  syncResumeUI();
+  load();
+});
+
+syncResumeUI();
 loadFilters();
 load();

@@ -7,3 +7,4 @@ python-dotenv
 lxml
 google-generativeai
 psycopg2-binary
+pypdf

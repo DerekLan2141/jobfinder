@@ -75,6 +75,70 @@ header .subtitle { color: #aab; font-size: 0.9rem; margin-top: 0.25rem; }
 .industry-select { max-width: 160px; }
 .location-input:focus, .industry-select:focus { outline: none; border-color: #4f46e5; }
 
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.resume-upload {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.resume-btn {
+  padding: 0.45rem 0.9rem;
+  border: 1.5px dashed #ccc;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #555;
+  white-space: nowrap;
+  transition: all 0.15s;
+  user-select: none;
+}
+.resume-btn:hover { border-color: #4f46e5; color: #4f46e5; background: #f5f3ff; }
+.resume-btn.loaded { border-style: solid; border-color: #4f46e5; color: #4f46e5; background: #eef2ff; }
+.resume-btn.loading { border-color: #9ca3af; color: #9ca3af; cursor: default; }
+
+.resume-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4f46e5;
+  background: #eef2ff;
+  padding: 0.2rem 0.55rem;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.resume-clear {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s;
+}
+.resume-clear:hover { border-color: #ef4444; color: #ef4444; }
+
+.job-match {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+}
+.match-high { background: #d1fae5; color: #065f46; }
+.match-mid  { background: #fef3c7; color: #92400e; }
+.match-low  { background: #fee2e2; color: #991b1b; }
+
 .scrape-btn {
   padding: 0.5rem 1.2rem;
   background: #4f46e5;

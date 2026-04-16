@@ -17,6 +17,7 @@ if _db_url.startswith("postgres://"):
     _db_url = _db_url.replace("postgres://", "postgresql://", 1)
 app.config["SQLALCHEMY_DATABASE_URI"] = _db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5MB upload limit
 db.init_app(app)
 
 # Create tables on startup — works for both local and Vercel cold starts
@@ -207,6 +208,61 @@ def update_notes(job_id):
     job.notes = request.json.get("notes", "")
     db.session.commit()
     return jsonify({"success": True})
+
+
+@app.route("/api/resume/upload", methods=["POST"])
+def upload_resume():
+    if "resume" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["resume"]
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Only PDF files are supported"}), 400
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return jsonify({"error": "GEMINI_API_KEY not configured"}), 500
+
+    try:
+        import pypdf
+        import io as _io
+
+        pdf_bytes = file.read()
+        reader = pypdf.PdfReader(_io.BytesIO(pdf_bytes))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+
+        if not text:
+            return jsonify({"error": "Could not extract text from this PDF. Make sure it is not a scanned image."}), 400
+
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+
+        prompt = f"""Analyze this resume and extract key information. Return ONLY valid JSON — no markdown, no code blocks.
+
+Resume:
+{text[:8000]}
+
+Return exactly this JSON structure:
+{{
+  "skills": ["list every technical skill, tool, language, and framework mentioned"],
+  "job_titles": ["job titles held or clearly targeted by this candidate"],
+  "industries": ["relevant industries based on experience"],
+  "years_experience": 0,
+  "education": "highest degree and field of study",
+  "summary": "2-3 sentence professional summary of this candidate"
+}}"""
+
+        response = model.generate_content(prompt)
+        result = response.text.strip()
+        result = re.sub(r"^```(?:json)?\s*", "", result)
+        result = re.sub(r"\s*```$", "", result)
+
+        profile = json.loads(result.strip())
+        return jsonify(profile)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/scrape", methods=["POST", "GET"])

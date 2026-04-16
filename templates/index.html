@@ -25,7 +25,15 @@
         <option value="">All Industries</option>
       </select>
     </div>
-    <button class="scrape-btn" id="scrapeBtn">Refresh Jobs</button>
+    <div class="controls-right">
+      <div class="resume-upload">
+        <label class="resume-btn" id="resumeLabel" for="resumeInput">&#128196; Upload Resume</label>
+        <input type="file" id="resumeInput" accept=".pdf" style="display:none" />
+        <span id="resumeTag" class="resume-tag hidden"></span>
+        <button id="resumeClear" class="resume-clear hidden" title="Clear resume">&#10005;</button>
+      </div>
+      <button class="scrape-btn" id="scrapeBtn">Refresh Jobs</button>
+    </div>
   </div>
 
   <div id="status" class="status hidden"></div>
@@ -51,6 +59,7 @@
         <span class="job-location"></span>
         <span class="job-date"></span>
         <span class="job-industry"></span>
+        <span class="job-match hidden"></span>
       </div>
       <div class="job-keywords"></div>
       <div class="job-snippet"></div>

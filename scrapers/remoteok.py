@@ -4,7 +4,7 @@ Uses their free public API — no auth, no browser needed.
 https://remoteok.com/api
 """
 import requests
-from .base import matches_entry_level
+from .base import matches_entry_level, is_us_location
 
 TAGS = ["junior", "entry-level", "new-grad"]
 BASE_URL = "https://remoteok.com/api"
@@ -41,6 +41,8 @@ def scrape() -> list[dict]:
             tags = ", ".join(job.get("tags", []))
 
             if not title or not url or url in seen_urls:
+                continue
+            if not is_us_location(location):
                 continue
             seen_urls.add(url)
 

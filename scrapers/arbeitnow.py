@@ -4,7 +4,7 @@ Uses their free public API — no auth, no browser needed.
 https://www.arbeitnow.com/api/job-board-api
 """
 import requests
-from .base import matches_entry_level
+from .base import matches_entry_level, is_us_location
 
 API_URL = "https://www.arbeitnow.com/api/job-board-api"
 
@@ -43,6 +43,8 @@ def scrape(max_pages: int = 4) -> list[dict]:
             created_at = job.get("created_at", "")
 
             if not title or not url or url in seen_urls:
+                continue
+            if not is_us_location(location):
                 continue
             seen_urls.add(url)
 

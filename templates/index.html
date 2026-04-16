@@ -3,91 +3,106 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>JobFinder — Entry Level Jobs</title>
+  <title>JobFinder</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
 
   <header>
-    <h1>JobFinder</h1>
-    <p class="subtitle">Entry-level &amp; new grad opportunities</p>
+    <div class="header-inner">
+      <div>
+        <h1>JobFinder</h1>
+        <p class="subtitle">Entry-level &amp; new grad opportunities</p>
+      </div>
+      <button class="btn-primary" id="scrapeBtn">Refresh Jobs</button>
+    </div>
+    <input type="text" id="searchInput" class="search-input" placeholder="Search by title, company, or keyword..." />
   </header>
 
-  <div class="search-bar">
-    <input type="text" id="searchInput" class="search-input" placeholder="Search jobs by title, company, or keyword..." />
-  </div>
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <button class="pill active" id="savedToggle">Saved Only</button>
 
-  <div class="controls">
-    <div class="filters">
-      <button class="filter-btn saved-toggle" id="savedToggle">Saved Only</button>
-      <input type="text" id="locationInput" class="location-input" placeholder="Location..." />
-      <select id="industrySelect" class="industry-select">
+      <!-- Location multi-select -->
+      <div class="loc-wrap" id="locWrap">
+        <div class="loc-box" id="locBox">
+          <span class="loc-placeholder" id="locPlaceholder">Location</span>
+          <div class="loc-tags" id="locTags"></div>
+          <input class="loc-input" id="locInput" type="text" autocomplete="off" />
+        </div>
+        <div class="loc-dropdown hidden" id="locDropdown"></div>
+      </div>
+
+      <!-- Industry select -->
+      <select class="pill pill-select" id="industrySelect">
         <option value="">All Industries</option>
       </select>
     </div>
-    <div class="controls-right">
-      <div class="resume-upload">
-        <label class="resume-btn" id="resumeLabel" for="resumeInput">&#128196; Upload Resume</label>
-        <input type="file" id="resumeInput" accept=".pdf" style="display:none" />
-        <span id="resumeTag" class="resume-tag hidden"></span>
-        <button id="resumeClear" class="resume-clear hidden" title="Clear resume">&#10005;</button>
-      </div>
-      <button class="scrape-btn" id="scrapeBtn">Refresh Jobs</button>
+
+    <div class="toolbar-right">
+      <label class="btn-resume" id="resumeLabel" for="resumeInput">&#128196; Upload Resume</label>
+      <input type="file" id="resumeInput" accept=".pdf" style="display:none" />
+      <span class="resume-tag hidden" id="resumeTag"></span>
+      <button class="resume-clear hidden" id="resumeClear" title="Clear resume">&#10005;</button>
     </div>
   </div>
 
   <div id="status" class="status hidden"></div>
 
-  <div id="jobList" class="job-list">
-    <p class="loading">Loading jobs...</p>
+  <div id="jobList" class="job-grid">
+    <p class="empty-msg">Loading jobs...</p>
   </div>
 
   <template id="jobCard">
-    <div class="job-card" data-id="">
-      <div class="job-header">
-        <div class="job-title-block">
-          <a class="job-title" href="" target="_blank" rel="noopener"></a>
-          <span class="job-company"></span>
+    <div class="card">
+      <div class="card-top">
+        <div class="card-title-block">
+          <a class="card-title" href="" target="_blank" rel="noopener"></a>
+          <span class="card-company"></span>
         </div>
-        <div class="job-actions">
-          <button class="btn-save" title="Save job">&#9825;</button>
+        <div class="card-actions">
+          <button class="btn-save" title="Save">&#9825;</button>
           <button class="btn-dismiss" title="Dismiss">&#10005;</button>
         </div>
       </div>
-      <div class="job-meta">
-        <span class="job-source badge"></span>
-        <span class="job-location"></span>
-        <span class="job-date"></span>
-        <span class="job-industry"></span>
-        <span class="job-match hidden"></span>
+      <div class="card-meta">
+        <span class="badge"></span>
+        <span class="card-location"></span>
+        <span class="card-date"></span>
+        <span class="card-industry hidden"></span>
+        <span class="card-match hidden"></span>
       </div>
-      <div class="job-keywords"></div>
-      <div class="job-snippet"></div>
-      <textarea class="job-notes" placeholder="Add notes..."></textarea>
+      <div class="card-keywords"></div>
+      <div class="card-snippet"></div>
+      <textarea class="card-notes" placeholder="Add notes..."></textarea>
     </div>
   </template>
 
-  <!-- Job Detail Modal -->
+  <!-- Modal -->
   <div id="modal" class="modal-overlay hidden">
     <div class="modal">
       <button class="modal-close" id="modalClose">&#10005;</button>
-      <div class="modal-header">
-        <h2 class="modal-title" id="modalTitle"></h2>
+      <div class="modal-head">
+        <div class="modal-title-row">
+          <h2 id="modalTitle"></h2>
+          <span class="badge" id="modalBadge"></span>
+        </div>
         <span class="modal-company" id="modalCompany"></span>
         <div class="modal-meta">
-          <span class="badge" id="modalBadge"></span>
           <span id="modalLocation"></span>
-          <span id="modalIndustry"></span>
+          <span class="modal-industry hidden" id="modalIndustry"></span>
         </div>
       </div>
-      <div class="modal-salary" id="modalSalary">
-        <strong>Est. Salary:</strong> <span id="modalSalaryValue">Analyzing...</span>
+      <div class="modal-salary">
+        <div class="salary-label">Estimated Salary</div>
+        <div class="salary-val" id="modalSalaryVal">Analyzing...</div>
       </div>
-      <div class="modal-description" id="modalDescription">
-        <div class="ai-loading">Analyzing with Gemini AI...</div>
+      <div class="modal-section-title">AI Summary</div>
+      <div class="modal-desc" id="modalDesc">
+        <div class="ai-loading"><div class="spinner"></div>Analyzing with Gemini 2.5...</div>
       </div>
-      <div class="modal-actions">
-        <a class="btn-view-listing" id="modalLink" href="" target="_blank" rel="noopener">View Listing ↗</a>
+      <div class="modal-footer">
+        <a class="btn-primary" id="modalLink" href="" target="_blank" rel="noopener">View Listing ↗</a>
       </div>
     </div>
   </div>

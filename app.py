@@ -28,7 +28,7 @@ def gemini_client():
     from google import genai
     return genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-GEMINI_MODEL = "gemini-2.5-flash-preview-04-17"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 
 def gemini_generate(prompt: str) -> str:

@@ -5,7 +5,7 @@ from flask import Flask, render_template, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from models import db, Job, Profile
-from scrapers import arbeitnow, remoteok, linkedin, handshake, adzuna
+from services.adzuna import fetch_jobs
 from services.embedder import (
     embed_one, embed_batch, cosine_similarity,
     job_text, load_embedding, dump_embedding,
@@ -27,14 +27,14 @@ with app.app_context():
     db.create_all()
 
 
-# ── Gemini helpers ─────────────────────────────────────────────────────────────
+# ── Gemini ─────────────────────────────────────────────────────────────────────
+
+GEMINI_MODEL = "gemini-2.5-flash"
+
 
 def gemini_client():
     from google import genai
     return genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-
-GEMINI_MODEL = "gemini-2.5-flash"
 
 
 def gemini_generate(prompt: str) -> str:
@@ -72,46 +72,28 @@ def classify_industry(title: str, snippet: str = "") -> str:
     return "Other"
 
 
-# ── Scraping & embedding ───────────────────────────────────────────────────────
+# ── Fetch & embed jobs ─────────────────────────────────────────────────────────
 
-def run_scrapers():
-    print("[scheduler] Running scrapers...")
-    scrapers_list = [
-        ("adzuna",    adzuna.scrape),
-        ("arbeitnow", arbeitnow.scrape),
-        ("remoteok",  remoteok.scrape),
-        ("linkedin",  linkedin.scrape),
-        ("handshake", handshake.scrape),
-    ]
-
+def refresh_jobs():
+    print("[refresh] Fetching jobs from Adzuna...")
+    results = fetch_jobs()
     new_jobs: list[Job] = []
 
-    for name, scrape_fn in scrapers_list:
-        try:
-            results = scrape_fn()
-            count = 0
-            for job_data in results:
-                if Job.query.filter_by(url=job_data["url"]).first():
-                    continue
-                job_data["industry"] = classify_industry(
-                    job_data.get("title", ""),
-                    job_data.get("description_snippet", ""),
-                )
-                job = Job(**{k: v for k, v in job_data.items() if hasattr(Job, k)})
-                db.session.add(job)
-                new_jobs.append(job)
-                count += 1
-            db.session.commit()
-            print(f"[{name}] Added {count} new jobs")
-        except Exception as e:
-            print(f"[{name}] Scraper failed: {e}")
+    for data in results:
+        if Job.query.filter_by(url=data["url"]).first():
+            continue
+        data["industry"] = classify_industry(data.get("title", ""), data.get("description_snippet", ""))
+        job = Job(**{k: v for k, v in data.items() if hasattr(Job, k)})
+        db.session.add(job)
+        new_jobs.append(job)
 
-    # Generate embeddings for all new jobs in one batch
+    db.session.commit()
+    print(f"[refresh] Added {len(new_jobs)} new jobs")
+
     _embed_jobs(new_jobs)
 
 
 def _embed_jobs(jobs: list[Job]):
-    """Generate and store embeddings for a list of Job rows (in-place batch)."""
     if not jobs or not os.getenv("GEMINI_API_KEY"):
         return
     try:
@@ -125,7 +107,7 @@ def _embed_jobs(jobs: list[Job]):
         print(f"[embedder] Batch embedding failed: {e}")
 
 
-def _get_active_profile() -> Profile | None:
+def _active_profile() -> Profile | None:
     return Profile.query.filter_by(id=1).first()
 
 
@@ -162,22 +144,19 @@ def get_jobs():
 
     jobs = query.order_by(Job.date_scraped.desc()).all()
 
-    # Vector ranking — apply when an active profile exists
-    profile = _get_active_profile()
+    profile = _active_profile()
     if profile:
         profile_vec = load_embedding(profile.embedding)
         if profile_vec:
-            # Embed any jobs that are missing embeddings (up to 50 at a time to stay fast)
             unembedded = [j for j in jobs if not j.embedding][:50]
             if unembedded:
                 _embed_jobs(unembedded)
 
-            scored: list[tuple[Job, int]] = []
+            scored = []
             for j in jobs:
-                vec = load_embedding(j.embedding)
+                vec   = load_embedding(j.embedding)
                 score = round(cosine_similarity(profile_vec, vec) * 100) if vec else 0
                 scored.append((j, score))
-
             scored.sort(key=lambda x: x[1], reverse=True)
             return jsonify([j.to_dict(match_score=s) for j, s in scored])
 
@@ -218,7 +197,6 @@ def analyze_job(job_id):
 Job Title: {job.title}
 Company: {job.company}
 Location: {job.location or "Not specified"}
-Source: {job.source}
 Description: {job.description_snippet or "Not provided"}
 
 Return exactly this JSON structure:
@@ -230,8 +208,6 @@ Return exactly this JSON structure:
         data = json.loads(gemini_generate(prompt))
         job.ai_description     = data.get("description", "")
         job.ai_salary_estimate = data.get("salary_estimate", "Not available")
-        if not job.industry:
-            job.industry = classify_industry(job.title, job.description_snippet or "")
         db.session.commit()
 
         return jsonify({"description": job.ai_description, "salary_estimate": job.ai_salary_estimate})
@@ -253,11 +229,10 @@ def upload_resume():
     try:
         import pypdf, io as _io
         reader = pypdf.PdfReader(_io.BytesIO(file.read()))
-        text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+        text   = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
         if not text:
             return jsonify({"error": "Could not extract text — make sure the PDF is not a scanned image."}), 400
 
-        # Step 1: extract structured profile + search_text via Gemini
         prompt = f"""Analyze this resume for job matching. Return ONLY valid JSON — no markdown, no code blocks.
 
 Resume:
@@ -275,12 +250,10 @@ Return exactly this JSON structure:
 }}"""
 
         profile_data = json.loads(gemini_generate(prompt))
-        search_text  = profile_data.get("search_text", profile_data.get("summary", text[:500]))
+        search_text  = profile_data.get("search_text") or profile_data.get("summary") or text[:500]
 
-        # Step 2: embed the search_text
         profile_vec = embed_one(search_text)
 
-        # Step 3: upsert into Profile table (always id=1)
         profile = Profile.query.filter_by(id=1).first()
         if profile is None:
             profile = Profile(id=1)
@@ -292,7 +265,6 @@ Return exactly this JSON structure:
         profile.embedding   = dump_embedding(profile_vec)
         db.session.commit()
 
-        # Return profile data to client (skills shown in UI, other fields for display)
         return jsonify({
             "skills":           profile_data.get("skills", []),
             "job_titles":       profile_data.get("job_titles", []),
@@ -343,7 +315,7 @@ def trigger_scrape():
         cron_secret = os.getenv("CRON_SECRET")
         if cron_secret and request.headers.get("Authorization", "") != f"Bearer {cron_secret}":
             return jsonify({"error": "Unauthorized"}), 401
-    run_scrapers()
+    refresh_jobs()
     return jsonify({"success": True})
 
 
@@ -352,8 +324,8 @@ if __name__ == "__main__":
         from apscheduler.schedulers.background import BackgroundScheduler
         scheduler = BackgroundScheduler()
         scheduler.add_job(
-            func=lambda: app.app_context().__enter__() or run_scrapers(),
-            trigger="interval", hours=6, id="scrape_jobs",
+            func=lambda: app.app_context().__enter__() or refresh_jobs(),
+            trigger="interval", hours=6, id="refresh_jobs",
         )
         scheduler.start()
     except Exception as e:

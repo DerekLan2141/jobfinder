@@ -287,7 +287,7 @@ def refresh_jobs():
     if not queries:
         return jsonify({"error": "No search queries found in profile."}), 400
     try:
-        _refresh_jobs(queries, limit=8, max_pages=2)
+        _refresh_jobs(queries, limit=len(queries), max_pages=3)
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

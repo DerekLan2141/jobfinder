@@ -7,7 +7,7 @@ import json
 import os
 import requests
 
-_EMBED_MODEL = "gemini-embedding-exp-03-07"
+_EMBED_MODEL = "embedding-001"
 _EMBED_URL = (
     "https://generativelanguage.googleapis.com"
     f"/v1beta/models/{_EMBED_MODEL}:embedContent"

@@ -7,13 +7,14 @@ import json
 import os
 import requests
 
+_EMBED_MODEL = "gemini-embedding-exp-03-07"
 _EMBED_URL = (
     "https://generativelanguage.googleapis.com"
-    "/v1/models/text-embedding-004:embedContent"
+    f"/v1beta/models/{_EMBED_MODEL}:embedContent"
 )
 _BATCH_URL = (
     "https://generativelanguage.googleapis.com"
-    "/v1/models/text-embedding-004:batchEmbedContents"
+    f"/v1beta/models/{_EMBED_MODEL}:batchEmbedContents"
 )
 _BATCH_SIZE = 100
 
@@ -23,7 +24,7 @@ def embed_one(text: str) -> list[float]:
     resp = requests.post(
         _EMBED_URL,
         params={"key": api_key},
-        json={"model": "models/text-embedding-004",
+        json={"model": f"models/{_EMBED_MODEL}",
               "content": {"parts": [{"text": text}]}},
         timeout=15,
     )
@@ -40,7 +41,7 @@ def embed_batch(texts: list[str]) -> list[list[float]]:
     for i in range(0, len(texts), _BATCH_SIZE):
         chunk = texts[i : i + _BATCH_SIZE]
         requests_body = [
-            {"model": "models/text-embedding-004",
+            {"model": f"models/{_EMBED_MODEL}",
              "content": {"parts": [{"text": t}]}}
             for t in chunk
         ]

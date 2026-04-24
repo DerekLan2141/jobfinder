@@ -174,7 +174,7 @@ Return exactly this JSON:
   "experience_level": "entry/junior/mid/senior",
   "education": "highest degree and field of study",
   "summary": "2-3 sentence professional summary of this candidate",
-  "search_queries": ["5-8 specific Adzuna job search queries tailored to this resume, e.g. 'entry level python developer', 'junior data analyst SQL', 'associate software engineer React']
+  "search_queries": ["5-8 Adzuna search queries for this resume. IMPORTANT: all queries must target entry-level / new grad roles. Always include terms like 'entry level', 'junior', 'associate', 'new grad', or 'analyst'. Examples: 'entry level python developer', 'junior data analyst SQL', 'associate software engineer React', 'new grad machine learning engineer'"]
 }}"""
 
         data = json.loads(gemini_generate(prompt))

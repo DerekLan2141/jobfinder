@@ -8,6 +8,19 @@ import requests
 
 BASE_URL = "https://api.adzuna.com/v1/api/jobs/us/search/{page}"
 
+ENTRY_LEVEL_KEYWORDS = [
+    "entry level", "entry-level", "new grad", "new graduate", "recent graduate",
+    "junior", "associate", "analyst", "0-1 year", "0-2 year", "0-3 year",
+    "no experience", "early career", "internship", "intern", "trainee",
+    "graduate program", "rotational program",
+]
+
+
+def _is_entry_level(title: str, description: str) -> bool:
+    text = (title + " " + description).lower()
+    return any(kw in text for kw in ENTRY_LEVEL_KEYWORDS)
+
+
 _US_STATES = re.compile(
     r'\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|'
     r'MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|'
@@ -86,6 +99,8 @@ def fetch_jobs(queries: list[str], results_per_page: int = 20, max_pages: int = 
                 if not title or not url or url in seen:
                     continue
                 if not _is_us(location):
+                    continue
+                if not _is_entry_level(title, description):
                     continue
                 seen.add(url)
 

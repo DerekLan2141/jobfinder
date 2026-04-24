@@ -10,7 +10,7 @@ BASE_URL = "https://api.adzuna.com/v1/api/jobs/us/search/{page}"
 
 ENTRY_LEVEL_KEYWORDS = [
     "entry level", "entry-level", "new grad", "new graduate", "recent graduate",
-    "junior", "associate", "analyst", "0-1 year", "0-2 year", "0-3 year",
+    "analyst", "0-1 year", "0-2 year", "0-3 year",
     "no experience", "early career", "internship", "intern", "trainee",
     "graduate program", "rotational program",
 ]

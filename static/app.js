@@ -172,8 +172,8 @@ async function saveNotes(id, notes) {
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 function openModal(job) {
-  document.getElementById("modalTitle").textContent   = job.title;
-  document.getElementById("modalCompany").textContent = job.company;
+  document.getElementById("modalTitle").textContent    = job.title;
+  document.getElementById("modalCompany").textContent  = job.company;
   document.getElementById("modalLocation").textContent = job.location || "";
   document.getElementById("modalSalaryInline").textContent = job.salary || "";
   document.getElementById("modalLink").href = job.url;
@@ -186,15 +186,9 @@ function openModal(job) {
     indEl.classList.add("hidden");
   }
 
-  if (job.ai_description) {
-    document.getElementById("modalSalaryVal").textContent = job.ai_salary_estimate || "Not available";
-    document.getElementById("modalDesc").textContent = job.ai_description;
-  } else {
-    document.getElementById("modalSalaryVal").textContent = "Analyzing...";
-    document.getElementById("modalDesc").innerHTML =
-      '<div class="ai-loading"><div class="spinner"></div>Analyzing with Gemini...</div>';
-    fetchAnalysis(job.id);
-  }
+  // Show description directly — no AI call
+  const desc = job.description_snippet || "No description available.";
+  document.getElementById("modalDesc").textContent = desc;
 
   document.getElementById("modal").classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -203,21 +197,6 @@ function openModal(job) {
 function closeModal() {
   document.getElementById("modal").classList.add("hidden");
   document.body.style.overflow = "";
-}
-
-async function fetchAnalysis(jobId) {
-  try {
-    const data = await (await fetch(`/api/jobs/${jobId}/analyze`, { method: "POST" })).json();
-    if (data.error) {
-      document.getElementById("modalSalaryVal").textContent = "Unavailable";
-      document.getElementById("modalDesc").innerHTML = `<div class="modal-error">${data.error}</div>`;
-    } else {
-      document.getElementById("modalSalaryVal").textContent = data.salary_estimate || "Not available";
-      document.getElementById("modalDesc").textContent = data.description || "";
-    }
-  } catch {
-    document.getElementById("modalDesc").innerHTML = '<div class="modal-error">Failed to connect.</div>';
-  }
 }
 
 document.getElementById("modalClose").addEventListener("click", closeModal);

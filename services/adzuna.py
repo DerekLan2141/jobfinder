@@ -1,6 +1,6 @@
 """
 Adzuna job API — https://developer.adzuna.com
-Requires ADZUNA_APP_ID and ADZUNA_APP_KEY environment variables.
+Fetches jobs using dynamic search queries derived from a resume profile.
 """
 import os
 import re
@@ -8,25 +8,11 @@ import requests
 
 BASE_URL = "https://api.adzuna.com/v1/api/jobs/us/search/{page}"
 
-SEARCH_QUERIES = [
-    "entry level software engineer",
-    "junior software developer",
-    "new grad software engineer",
-    "associate software engineer",
-    "entry level data scientist",
-    "junior data analyst",
-    "entry level frontend developer",
-    "entry level backend engineer",
-    "junior devops engineer",
-    "entry level machine learning engineer",
-]
-
 _US_STATES = re.compile(
     r'\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|'
     r'MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|'
     r'TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\b'
 )
-
 _US_KEYWORDS = [
     "united states", "usa", "u.s.", "remote",
     "new york", "los angeles", "chicago", "houston", "phoenix",
@@ -40,14 +26,11 @@ def _is_us(location: str) -> bool:
     if not location:
         return True
     loc = location.lower()
-    if any(kw in loc for kw in _US_KEYWORDS):
-        return True
-    if _US_STATES.search(location):
-        return True
-    return False
+    return any(kw in loc for kw in _US_KEYWORDS) or bool(_US_STATES.search(location))
 
 
-def fetch_jobs(results_per_page: int = 20, max_pages: int = 2) -> list[dict]:
+def fetch_jobs(queries: list[str], results_per_page: int = 20, max_pages: int = 2) -> list[dict]:
+    """Fetch jobs from Adzuna for a list of search queries."""
     app_id  = os.getenv("ADZUNA_APP_ID")
     app_key = os.getenv("ADZUNA_APP_KEY")
     if not app_id or not app_key:
@@ -57,7 +40,7 @@ def fetch_jobs(results_per_page: int = 20, max_pages: int = 2) -> list[dict]:
     jobs: list[dict] = []
     seen: set[str]   = set()
 
-    for query in SEARCH_QUERIES:
+    for query in queries:
         for page in range(1, max_pages + 1):
             try:
                 resp = requests.get(
@@ -85,10 +68,8 @@ def fetch_jobs(results_per_page: int = 20, max_pages: int = 2) -> list[dict]:
             for job in results:
                 title   = job.get("title", "").strip()
                 company = (job.get("company") or {}).get("display_name", "").strip()
-
-                area     = (job.get("location") or {}).get("area", [])
+                area    = (job.get("location") or {}).get("area", [])
                 location = ", ".join(area[-2:]) if len(area) >= 2 else ", ".join(area)
-
                 url         = job.get("redirect_url", "").strip()
                 description = job.get("description", "")
                 date_posted = (job.get("created") or "")[:10]
@@ -113,12 +94,10 @@ def fetch_jobs(results_per_page: int = 20, max_pages: int = 2) -> list[dict]:
                     "company":             company,
                     "location":            location,
                     "url":                 url,
-                    "source":              "adzuna",
                     "description_snippet": description[:500],
-                    "matched_keywords":    "",
                     "date_posted":         date_posted,
-                    "ai_salary_estimate":  salary,
+                    "salary":              salary,
                 })
 
-    print(f"[adzuna] Fetched {len(jobs)} jobs")
+    print(f"[adzuna] Fetched {len(jobs)} jobs for {len(queries)} queries")
     return jobs

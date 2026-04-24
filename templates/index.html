@@ -12,19 +12,42 @@
     <div class="header-inner">
       <div>
         <h1>JobFinder</h1>
-        <p class="subtitle">Entry-level &amp; new grad opportunities</p>
+        <p class="subtitle">Resume-matched jobs from Adzuna</p>
       </div>
-      <button class="btn-primary" id="scrapeBtn">Refresh Jobs</button>
+      <div class="header-actions">
+        <label class="btn-resume" id="resumeLabel" for="resumeInput">&#128196; Upload Resume</label>
+        <input type="file" id="resumeInput" accept=".pdf" style="display:none" />
+        <button class="resume-clear hidden" id="resumeClear">&#10005; Clear Resume</button>
+      </div>
     </div>
-    <input type="text" id="searchInput" class="search-input" placeholder="Search by title, company, or keyword..." />
   </header>
 
-  <div class="toolbar">
-    <div class="toolbar-left">
-      <button class="pill active" id="savedToggle">Saved Only</button>
+  <!-- Shown when no resume loaded -->
+  <div id="uploadPrompt" class="upload-prompt">
+    <div class="upload-prompt-inner">
+      <div class="upload-icon">&#128196;</div>
+      <h2>Upload your resume to get started</h2>
+      <p>We'll analyze it with AI and find matching jobs from Adzuna.</p>
+      <label class="btn-primary" for="resumeInput">Choose PDF</label>
+    </div>
+  </div>
 
-      <!-- Location multi-select -->
-      <div class="loc-wrap" id="locWrap">
+  <!-- Shown after resume loaded -->
+  <div id="profileBar" class="profile-bar hidden">
+    <div class="profile-summary">
+      <span class="profile-label">Matched for:</span>
+      <span id="profileTitles" class="profile-titles"></span>
+      <span id="profileSkillCount" class="profile-skill-count"></span>
+    </div>
+    <button class="btn-secondary" id="refreshBtn">&#8635; Refresh Jobs</button>
+  </div>
+
+  <div id="status" class="status hidden"></div>
+
+  <div class="toolbar hidden" id="toolbar">
+    <div class="toolbar-left">
+      <button class="pill" id="savedToggle">Saved Only</button>
+      <div class="loc-wrap">
         <div class="loc-box" id="locBox">
           <span class="loc-placeholder" id="locPlaceholder">Location</span>
           <div class="loc-tags" id="locTags"></div>
@@ -32,26 +55,16 @@
         </div>
         <div class="loc-dropdown hidden" id="locDropdown"></div>
       </div>
-
-      <!-- Industry select -->
       <select class="pill pill-select" id="industrySelect">
         <option value="">All Industries</option>
       </select>
     </div>
-
     <div class="toolbar-right">
-      <label class="btn-resume" id="resumeLabel" for="resumeInput">&#128196; Upload Resume</label>
-      <input type="file" id="resumeInput" accept=".pdf" style="display:none" />
-      <span class="resume-tag hidden" id="resumeTag"></span>
-      <button class="resume-clear hidden" id="resumeClear" title="Clear resume">&#10005;</button>
+      <input type="text" id="searchInput" class="search-input" placeholder="Search jobs..." />
     </div>
   </div>
 
-  <div id="status" class="status hidden"></div>
-
-  <div id="jobList" class="job-grid">
-    <p class="empty-msg">Loading jobs...</p>
-  </div>
+  <div id="jobList" class="job-grid"></div>
 
   <template id="jobCard">
     <div class="card">
@@ -66,40 +79,36 @@
         </div>
       </div>
       <div class="card-meta">
-        <span class="badge"></span>
         <span class="card-location"></span>
         <span class="card-date"></span>
+        <span class="card-salary"></span>
         <span class="card-industry hidden"></span>
         <span class="card-match hidden"></span>
       </div>
-      <div class="card-keywords"></div>
       <div class="card-snippet"></div>
       <textarea class="card-notes" placeholder="Add notes..."></textarea>
     </div>
   </template>
 
-  <!-- Modal -->
   <div id="modal" class="modal-overlay hidden">
     <div class="modal">
       <button class="modal-close" id="modalClose">&#10005;</button>
       <div class="modal-head">
-        <div class="modal-title-row">
-          <h2 id="modalTitle"></h2>
-          <span class="badge" id="modalBadge"></span>
-        </div>
+        <h2 id="modalTitle"></h2>
         <span class="modal-company" id="modalCompany"></span>
         <div class="modal-meta">
           <span id="modalLocation"></span>
+          <span id="modalSalaryInline" class="modal-salary-inline"></span>
           <span class="modal-industry hidden" id="modalIndustry"></span>
         </div>
       </div>
-      <div class="modal-salary">
-        <div class="salary-label">Estimated Salary</div>
+      <div class="modal-salary-box">
+        <div class="salary-label">AI Salary Estimate</div>
         <div class="salary-val" id="modalSalaryVal">Analyzing...</div>
       </div>
       <div class="modal-section-title">AI Summary</div>
       <div class="modal-desc" id="modalDesc">
-        <div class="ai-loading"><div class="spinner"></div>Analyzing with Gemini 2.5...</div>
+        <div class="ai-loading"><div class="spinner"></div>Analyzing with Gemini...</div>
       </div>
       <div class="modal-footer">
         <a class="btn-primary" id="modalLink" href="" target="_blank" rel="noopener">View Listing ↗</a>

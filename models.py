@@ -10,20 +10,19 @@ class Job(db.Model):
     company             = db.Column(db.String(200), nullable=False)
     location            = db.Column(db.String(200))
     url                 = db.Column(db.String(500), unique=True, nullable=False)
-    source              = db.Column(db.String(50))
+    source              = db.Column(db.String(50), default="adzuna")
     description_snippet = db.Column(db.Text)
-    matched_keywords    = db.Column(db.String(500))
     date_posted         = db.Column(db.String(100))
     date_scraped        = db.Column(db.DateTime, default=datetime.utcnow)
+    salary              = db.Column(db.String(200))
+    industry            = db.Column(db.String(100))
     is_saved            = db.Column(db.Boolean, default=False)
     is_dismissed        = db.Column(db.Boolean, default=False)
     notes               = db.Column(db.Text)
-    industry            = db.Column(db.String(100))
     ai_description      = db.Column(db.Text)
     ai_salary_estimate  = db.Column(db.String(200))
-    embedding           = db.Column(db.Text)   # JSON list[float], nullable until embedded
 
-    def to_dict(self, match_score: int | None = None):
+    def to_dict(self, match_score=None):
         d = {
             "id":                  self.id,
             "title":               self.title,
@@ -32,13 +31,12 @@ class Job(db.Model):
             "url":                 self.url,
             "source":              self.source,
             "description_snippet": self.description_snippet,
-            "matched_keywords":    self.matched_keywords,
             "date_posted":         self.date_posted,
-            "date_scraped":        self.date_scraped.isoformat(),
+            "salary":              self.salary,
+            "industry":            self.industry,
             "is_saved":            self.is_saved,
             "is_dismissed":        self.is_dismissed,
             "notes":               self.notes,
-            "industry":            self.industry,
             "ai_description":      self.ai_description,
             "ai_salary_estimate":  self.ai_salary_estimate,
         }
@@ -48,10 +46,12 @@ class Job(db.Model):
 
 
 class Profile(db.Model):
-    """Stores the active resume profile and its embedding. Only one row at a time (id=1)."""
-    id          = db.Column(db.Integer, primary_key=True)
-    skills      = db.Column(db.Text)   # JSON list[str]
-    job_titles  = db.Column(db.Text)   # JSON list[str]
-    search_text = db.Column(db.Text)   # LLM-generated description optimised for embedding
-    embedding   = db.Column(db.Text)   # JSON list[float]
-    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    """Active resume profile — only one row (id=1)."""
+    id             = db.Column(db.Integer, primary_key=True)
+    skills         = db.Column(db.Text)   # JSON list[str]
+    job_titles     = db.Column(db.Text)   # JSON list[str]
+    search_queries = db.Column(db.Text)   # JSON list[str] — Adzuna queries
+    summary        = db.Column(db.Text)
+    education      = db.Column(db.String(300))
+    experience_level = db.Column(db.String(50))
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)

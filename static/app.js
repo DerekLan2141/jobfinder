@@ -1,9 +1,9 @@
 // ── State ──────────────────────────────────────────────────────────────────
+let profile        = null;   // active resume profile from server
 let savedOnly      = false;
 let searchQuery    = "";
-let locationFilters = [];   // array of selected location strings
+let locationFilters = [];
 let industryFilter = "";
-let resumeProfile  = JSON.parse(localStorage.getItem("resumeProfile") || "null");
 let availableLocations = [];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -12,27 +12,54 @@ function debounce(fn, ms) {
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
 
-function showStatus(msg, type) {
+function showStatus(msg, type = "") {
   const el = document.getElementById("status");
   el.textContent = msg;
   el.className = `status ${type}`;
-  setTimeout(() => el.className = "status hidden", 4000);
+  if (type !== "loading") setTimeout(() => el.className = "status hidden", 5000);
 }
 
-// ── Match scoring ──────────────────────────────────────────────────────────
-// Primary: server-side vector score (job.match_score 0-100).
-// Fallback: keyword overlap when server hasn't scored yet.
-function calcMatch(job, profile) {
-  if (job.match_score !== undefined) return job.match_score;
-  if (!profile?.skills?.length) return null;
-  const skills = profile.skills.map(s => s.toLowerCase());
-  const haystack = [job.title, job.description_snippet, job.matched_keywords, job.industry]
-    .join(" ").toLowerCase();
-  const hits = skills.filter(s => haystack.includes(s));
-  return Math.round((hits.length / skills.length) * 100);
+function hideStatus() {
+  document.getElementById("status").className = "status hidden";
 }
 
-// ── Fetch & render jobs ────────────────────────────────────────────────────
+function escHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+}
+
+// ── Profile UI ─────────────────────────────────────────────────────────────
+function syncProfileUI() {
+  const prompt    = document.getElementById("uploadPrompt");
+  const bar       = document.getElementById("profileBar");
+  const toolbar   = document.getElementById("toolbar");
+  const jobList   = document.getElementById("jobList");
+  const label     = document.getElementById("resumeLabel");
+  const clearBtn  = document.getElementById("resumeClear");
+
+  if (profile) {
+    prompt.classList.add("hidden");
+    bar.classList.remove("hidden");
+    toolbar.classList.remove("hidden");
+
+    const titles = (profile.job_titles || []).slice(0, 3).join(", ");
+    document.getElementById("profileTitles").textContent = titles || "Your profile";
+    document.getElementById("profileSkillCount").textContent =
+      profile.skills?.length ? `· ${profile.skills.length} skills detected` : "";
+
+    label.textContent = "&#128196; Change Resume";
+    clearBtn.classList.remove("hidden");
+  } else {
+    prompt.classList.remove("hidden");
+    bar.classList.add("hidden");
+    toolbar.classList.add("hidden");
+    jobList.innerHTML = "";
+
+    label.textContent = "&#128196; Upload Resume";
+    clearBtn.classList.add("hidden");
+  }
+}
+
+// ── Jobs ───────────────────────────────────────────────────────────────────
 async function fetchJobs() {
   const p = new URLSearchParams();
   if (savedOnly) p.set("saved", "true");
@@ -48,15 +75,8 @@ function renderJobs(jobs) {
   list.innerHTML = "";
 
   if (!jobs.length) {
-    list.innerHTML = '<p class="empty-msg">No jobs found. Click "Refresh Jobs" to scrape.</p>';
+    list.innerHTML = '<p class="empty-msg">No jobs found.</p>';
     return;
-  }
-
-  // Server already sorts by vector score when a profile is active.
-  // Only re-sort client-side when server scores are absent (no profile on server).
-  const hasServerScores = jobs.some(j => j.match_score !== undefined);
-  if (resumeProfile && !hasServerScores) {
-    jobs = [...jobs].sort((a, b) => calcMatch(b, resumeProfile) - calcMatch(a, resumeProfile));
   }
 
   const tpl = document.getElementById("jobCard");
@@ -71,37 +91,26 @@ function renderJobs(jobs) {
     card.querySelector(".card-company").textContent = job.company;
     card.querySelector(".card-location").textContent = job.location || "";
     card.querySelector(".card-date").textContent = job.date_posted ? `· ${job.date_posted}` : "";
+    card.querySelector(".card-salary").textContent = job.salary || "";
     card.querySelector(".card-snippet").textContent = job.description_snippet || "";
     card.querySelector(".card-notes").value = job.notes || "";
 
-    // Badge
-    const badge = card.querySelector(".badge");
-    badge.textContent = job.source;
-    badge.classList.add(`badge-${job.source}`);
-
-    // Industry
-    const industryEl = card.querySelector(".card-industry");
+    // Industry tag
+    const indEl = card.querySelector(".card-industry");
     if (job.industry && job.industry !== "Other") {
-      industryEl.textContent = job.industry;
-      industryEl.classList.remove("hidden");
+      indEl.textContent = job.industry;
+      indEl.classList.remove("hidden");
     }
 
     // Match score
-    const matchEl = card.querySelector(".card-match");
-    if (resumeProfile) {
-      const score = calcMatch(job, resumeProfile);
-      matchEl.textContent = `${score}% match`;
-      matchEl.className = `card-match ${score >= 70 ? "match-high" : score >= 40 ? "match-mid" : "match-low"}`;
+    if (job.match_score !== undefined) {
+      const matchEl = card.querySelector(".card-match");
+      matchEl.textContent = `${job.match_score}% match`;
+      matchEl.className = `card-match ${
+        job.match_score >= 60 ? "match-high" :
+        job.match_score >= 30 ? "match-mid" : "match-low"
+      }`;
     }
-
-    // Keywords
-    const kwEl = card.querySelector(".card-keywords");
-    (job.matched_keywords || "").split(",").filter(Boolean).forEach(kw => {
-      const t = document.createElement("span");
-      t.className = "kw-tag";
-      t.textContent = kw.trim();
-      kwEl.appendChild(t);
-    });
 
     // Save button
     const saveBtn = card.querySelector(".btn-save");
@@ -109,15 +118,17 @@ function renderJobs(jobs) {
     if (job.is_saved) saveBtn.classList.add("saved");
     saveBtn.addEventListener("click", e => { e.stopPropagation(); toggleSave(job.id, card, saveBtn); });
 
-    // Dismiss button
-    card.querySelector(".btn-dismiss").addEventListener("click", e => { e.stopPropagation(); dismissJob(job.id, card); });
+    // Dismiss
+    card.querySelector(".btn-dismiss").addEventListener("click", e => {
+      e.stopPropagation(); dismissJob(job.id, card);
+    });
 
     // Notes
     const notes = card.querySelector(".card-notes");
     notes.addEventListener("click", e => e.stopPropagation());
     notes.addEventListener("blur", e => saveNotes(job.id, e.target.value));
 
-    // Modal
+    // Modal on card click
     card.addEventListener("click", e => {
       if (e.target.closest(".btn-save, .btn-dismiss, .card-notes, .card-title")) return;
       openModal(job);
@@ -128,9 +139,11 @@ function renderJobs(jobs) {
 }
 
 async function load() {
+  if (!profile) return;
   document.getElementById("jobList").innerHTML = '<p class="empty-msg">Loading jobs...</p>';
   const jobs = await fetchJobs();
   renderJobs(jobs);
+  await loadFilters();
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -159,14 +172,11 @@ async function saveNotes(id, notes) {
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 function openModal(job) {
-  document.getElementById("modalTitle").textContent = job.title;
+  document.getElementById("modalTitle").textContent   = job.title;
   document.getElementById("modalCompany").textContent = job.company;
   document.getElementById("modalLocation").textContent = job.location || "";
+  document.getElementById("modalSalaryInline").textContent = job.salary || "";
   document.getElementById("modalLink").href = job.url;
-
-  const badge = document.getElementById("modalBadge");
-  badge.textContent = job.source;
-  badge.className = `badge badge-${job.source}`;
 
   const indEl = document.getElementById("modalIndustry");
   if (job.industry && job.industry !== "Other") {
@@ -181,7 +191,8 @@ function openModal(job) {
     document.getElementById("modalDesc").textContent = job.ai_description;
   } else {
     document.getElementById("modalSalaryVal").textContent = "Analyzing...";
-    document.getElementById("modalDesc").innerHTML = '<div class="ai-loading"><div class="spinner"></div>Analyzing with Gemini 2.5...</div>';
+    document.getElementById("modalDesc").innerHTML =
+      '<div class="ai-loading"><div class="spinner"></div>Analyzing with Gemini...</div>';
     fetchAnalysis(job.id);
   }
 
@@ -205,12 +216,14 @@ async function fetchAnalysis(jobId) {
       document.getElementById("modalDesc").textContent = data.description || "";
     }
   } catch {
-    document.getElementById("modalDesc").innerHTML = '<div class="modal-error">Failed to connect to AI service.</div>';
+    document.getElementById("modalDesc").innerHTML = '<div class="modal-error">Failed to connect.</div>';
   }
 }
 
 document.getElementById("modalClose").addEventListener("click", closeModal);
-document.getElementById("modal").addEventListener("click", e => { if (e.target === document.getElementById("modal")) closeModal(); });
+document.getElementById("modal").addEventListener("click", e => {
+  if (e.target === document.getElementById("modal")) closeModal();
+});
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
 // ── Location multi-select ──────────────────────────────────────────────────
@@ -230,13 +243,13 @@ function renderLocTags() {
   locPlaceholder.style.display = locationFilters.length ? "none" : "";
 }
 
-function escHtml(s) { return s.replace(/&/g,"&amp;").replace(/"/g,"&quot;"); }
-
 function showLocDropdown(query = "") {
   const q = query.toLowerCase();
   const opts = availableLocations.filter(l => l.toLowerCase().includes(q) && !locationFilters.includes(l));
   if (!opts.length) { locDropdown.classList.add("hidden"); return; }
-  locDropdown.innerHTML = opts.slice(0, 12).map(l => `<div class="loc-option" data-loc="${escHtml(l)}">${l}</div>`).join("");
+  locDropdown.innerHTML = opts.slice(0, 12).map(l =>
+    `<div class="loc-option" data-loc="${escHtml(l)}">${l}</div>`
+  ).join("");
   locDropdown.querySelectorAll(".loc-option").forEach(o =>
     o.addEventListener("mousedown", e => { e.preventDefault(); addLocation(o.dataset.loc); })
   );
@@ -281,80 +294,10 @@ document.getElementById("searchInput").addEventListener("input", debounce(e => {
   load();
 }, 300));
 
-// ── Resume ─────────────────────────────────────────────────────────────────
-function syncResumeUI() {
-  const label = document.getElementById("resumeLabel");
-  const tag   = document.getElementById("resumeTag");
-  const clear = document.getElementById("resumeClear");
-  if (resumeProfile) {
-    label.textContent = "📄 Change Resume";
-    label.classList.add("loaded");
-    tag.textContent = `${resumeProfile.skills.length} skills`;
-    tag.classList.remove("hidden");
-    clear.classList.remove("hidden");
-  } else {
-    label.textContent = "📄 Upload Resume";
-    label.classList.remove("loaded");
-    tag.classList.add("hidden");
-    clear.classList.add("hidden");
-  }
-}
-
-document.getElementById("resumeInput").addEventListener("change", async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const label = document.getElementById("resumeLabel");
-  label.textContent = "Analyzing...";
-  label.classList.add("loading");
-
-  const fd = new FormData();
-  fd.append("resume", file);
-  try {
-    const res = await fetch("/api/resume/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.error) { showStatus(`Resume error: ${data.error}`, "error"); }
-    else {
-      resumeProfile = data;
-      localStorage.setItem("resumeProfile", JSON.stringify(data));
-      showStatus(`Resume analyzed — ${data.skills.length} skills detected. Jobs sorted by match.`, "success");
-      load();
-    }
-  } catch { showStatus("Failed to analyze resume.", "error"); }
-  finally {
-    label.classList.remove("loading");
-    syncResumeUI();
-    e.target.value = "";
-  }
-});
-
-document.getElementById("resumeClear").addEventListener("click", async () => {
-  resumeProfile = null;
-  localStorage.removeItem("resumeProfile");
-  syncResumeUI();
-  await fetch("/api/resume", { method: "DELETE" });
-  load();
-});
-
-// ── Refresh button ─────────────────────────────────────────────────────────
-document.getElementById("scrapeBtn").addEventListener("click", async function () {
-  this.disabled = true;
-  this.textContent = "Scraping...";
-  showStatus("Scraping jobs — this may take a minute...", "");
-  try {
-    await fetch("/api/scrape", { method: "POST" });
-    showStatus("Done! Jobs updated.", "success");
-    await loadFilters();
-    load();
-  } catch { showStatus("Scrape failed.", "error"); }
-  finally { this.disabled = false; this.textContent = "Refresh Jobs"; }
-});
-
-// ── Init ───────────────────────────────────────────────────────────────────
 async function loadFilters() {
   try {
     const data = await (await fetch("/api/filters")).json();
     availableLocations = data.locations || [];
-
     const sel = document.getElementById("industrySelect");
     const cur = sel.value;
     sel.innerHTML = '<option value="">All Industries</option>';
@@ -367,6 +310,87 @@ async function loadFilters() {
   } catch {}
 }
 
-syncResumeUI();
-loadFilters();
-load();
+// ── Resume upload ──────────────────────────────────────────────────────────
+document.getElementById("resumeInput").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const label = document.getElementById("resumeLabel");
+  label.textContent = "Analyzing...";
+  showStatus("Analyzing resume and finding matching jobs — this may take a moment...", "loading");
+
+  const fd = new FormData();
+  fd.append("resume", file);
+
+  try {
+    const res  = await fetch("/api/resume/upload", { method: "POST", body: fd });
+    const data = await res.json();
+
+    if (data.error) {
+      showStatus(`Resume error: ${data.error}`, "error");
+    } else {
+      profile = data;
+      syncProfileUI();
+      showStatus(`Resume analyzed — ${data.skills?.length || 0} skills detected. Found matching jobs!`, "success");
+      await load();
+    }
+  } catch {
+    showStatus("Failed to analyze resume.", "error");
+  } finally {
+    label.innerHTML = profile ? "&#128196; Change Resume" : "&#128196; Upload Resume";
+    e.target.value = "";
+  }
+});
+
+// ── Clear resume ───────────────────────────────────────────────────────────
+document.getElementById("resumeClear").addEventListener("click", async () => {
+  await fetch("/api/resume", { method: "DELETE" });
+  profile = null;
+  locationFilters = [];
+  industryFilter  = "";
+  searchQuery     = "";
+  savedOnly       = false;
+  document.getElementById("savedToggle").classList.remove("active");
+  document.getElementById("searchInput").value = "";
+  renderLocTags();
+  syncProfileUI();
+  hideStatus();
+});
+
+// ── Refresh jobs ───────────────────────────────────────────────────────────
+document.getElementById("refreshBtn").addEventListener("click", async function () {
+  this.disabled = true;
+  showStatus("Fetching fresh jobs from Adzuna...", "loading");
+  try {
+    const res = await fetch("/api/jobs/refresh", { method: "POST" });
+    const data = await res.json();
+    if (data.error) {
+      showStatus(data.error, "error");
+    } else {
+      showStatus("Jobs updated!", "success");
+      await load();
+    }
+  } catch {
+    showStatus("Refresh failed.", "error");
+  } finally {
+    this.disabled = false;
+  }
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+  // Check if a profile already exists on the server (e.g. from a previous session)
+  try {
+    const res = await fetch("/api/profile");
+    const data = await res.json();
+    if (data) {
+      profile = data;
+      syncProfileUI();
+      await load();
+      return;
+    }
+  } catch {}
+  syncProfileUI();
+}
+
+init();

@@ -6,10 +6,6 @@ from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from models import db, Job, Profile
 from services.adzuna import fetch_jobs
-from services.embedder import (
-    embed_one, embed_batch, cosine_similarity,
-    job_text, load_embedding, dump_embedding,
-)
 
 load_dotenv()
 
@@ -29,7 +25,7 @@ with app.app_context():
 
 # ── Gemini ─────────────────────────────────────────────────────────────────────
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL  = "gemini-2.5-flash"
 _gemini_client = None
 
 
@@ -37,10 +33,7 @@ def gemini_client():
     global _gemini_client
     if _gemini_client is None:
         from google import genai
-        _gemini_client = genai.Client(
-            api_key=os.getenv("GEMINI_API_KEY"),
-            http_options={"api_version": "v1"},
-        )
+        _gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     return _gemini_client
 
 
@@ -52,70 +45,54 @@ def gemini_generate(prompt: str) -> str:
     return text.strip()
 
 
-# ── Industry classifier ────────────────────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────────────────
 
 def classify_industry(title: str, snippet: str = "") -> str:
     text = (title + " " + (snippet or "")).lower()
     if any(k in text for k in ["cybersecurity", "security engineer", "security analyst", "infosec"]):
         return "Cybersecurity"
-    if any(k in text for k in ["data scientist", "data analyst", "machine learning", "ml engineer", "ai engineer", "data engineer", "analytics"]):
+    if any(k in text for k in ["data scientist", "data analyst", "machine learning", "ml engineer", "ai engineer", "data engineer"]):
         return "Data & Analytics"
-    if any(k in text for k in ["product manager", "product owner", "product management", "associate pm"]):
+    if any(k in text for k in ["product manager", "product owner", "associate pm"]):
         return "Product Management"
-    if any(k in text for k in ["software engineer", "software developer", "programmer", "backend", "frontend", "full stack", "fullstack", "devops", "platform engineer", "mobile engineer", "web developer"]):
+    if any(k in text for k in ["software engineer", "software developer", "backend", "frontend", "full stack", "devops", "mobile", "web developer"]):
         return "Software Engineering"
-    if any(k in text for k in ["designer", "ux ", "ui ", "user experience", "graphic design", "visual design", "product design"]):
+    if any(k in text for k in ["designer", "ux", "ui ", "user experience", "graphic design"]):
         return "Design"
-    if any(k in text for k in ["financial analyst", "finance", "accounting", "investment", "banking", "fintech"]):
+    if any(k in text for k in ["financial analyst", "finance", "accounting", "investment", "banking"]):
         return "Finance"
-    if any(k in text for k in ["marketing", "seo", "social media", "brand manager", "copywriter", "demand generation"]):
+    if any(k in text for k in ["marketing", "seo", "social media", "brand", "copywriter"]):
         return "Marketing"
-    if any(k in text for k in ["sales", "business development", "account executive", "account manager", "customer success"]):
+    if any(k in text for k in ["sales", "business development", "account executive", "customer success"]):
         return "Sales"
-    if any(k in text for k in ["recruiter", "human resources", "talent acquisition", "people operations"]):
-        return "HR & Recruiting"
-    if any(k in text for k in ["operations", "project manager", "program manager", "supply chain", "logistics"]):
-        return "Operations & Strategy"
     return "Other"
 
 
-# ── Fetch & embed jobs ─────────────────────────────────────────────────────────
-
-def refresh_jobs():
-    print("[refresh] Fetching jobs from Adzuna...")
-    results = fetch_jobs()
-    new_jobs: list[Job] = []
-
-    for data in results:
-        if Job.query.filter_by(url=data["url"]).first():
-            continue
-        data["industry"] = classify_industry(data.get("title", ""), data.get("description_snippet", ""))
-        job = Job(**{k: v for k, v in data.items() if hasattr(Job, k)})
-        db.session.add(job)
-        new_jobs.append(job)
-
-    db.session.commit()
-    print(f"[refresh] Added {len(new_jobs)} new jobs")
-
-    _embed_jobs(new_jobs)
-
-
-def _embed_jobs(jobs: list[Job]):
-    if not jobs or not os.getenv("GEMINI_API_KEY"):
-        return
-    try:
-        texts = [job_text(j) for j in jobs]
-        vecs  = embed_batch(texts)
-        for job, vec in zip(jobs, vecs):
-            job.embedding = dump_embedding(vec)
-        db.session.commit()
-        print(f"[embedder] Embedded {len(jobs)} jobs")
-    except Exception as e:
-        print(f"[embedder] Batch embedding failed: {e}")
+def calc_match_score(job: Job, skills: list[str], titles: list[str]) -> int:
+    """Keyword overlap score 0-100 between a job and profile terms."""
+    if not skills and not titles:
+        return 0
+    haystack = " ".join(filter(None, [
+        job.title, job.company, job.description_snippet, job.industry
+    ])).lower()
+    terms = [t.lower() for t in (skills + titles) if t]
+    if not terms:
+        return 0
+    hits = sum(1 for t in terms if t in haystack)
+    return round((hits / len(terms)) * 100)
 
 
 def _active_profile() -> Profile | None:
     return Profile.query.filter_by(id=1).first()
+
+
+def _load_json(val) -> list:
+    if not val:
+        return []
+    try:
+        return json.loads(val)
+    except Exception:
+        return []
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -123,6 +100,112 @@ def _active_profile() -> Profile | None:
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/api/profile")
+def get_profile():
+    profile = _active_profile()
+    if not profile:
+        return jsonify(None)
+    return jsonify({
+        "skills":           _load_json(profile.skills),
+        "job_titles":       _load_json(profile.job_titles),
+        "search_queries":   _load_json(profile.search_queries),
+        "summary":          profile.summary,
+        "education":        profile.education,
+        "experience_level": profile.experience_level,
+    })
+
+
+@app.route("/api/resume/upload", methods=["POST"])
+def upload_resume():
+    if "resume" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files["resume"]
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Only PDF files are supported"}), 400
+    if not os.getenv("GEMINI_API_KEY"):
+        return jsonify({"error": "GEMINI_API_KEY not configured"}), 500
+
+    try:
+        import pypdf, io as _io
+        reader = pypdf.PdfReader(_io.BytesIO(file.read()))
+        text   = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+        if not text:
+            return jsonify({"error": "Could not extract text from PDF."}), 400
+
+        prompt = f"""Analyze this resume and extract key information for job searching. Return ONLY valid JSON — no markdown, no code blocks.
+
+Resume:
+{text[:8000]}
+
+Return exactly this JSON:
+{{
+  "skills": ["list every technical skill, tool, language, and framework mentioned"],
+  "job_titles": ["job titles this person has held or is targeting"],
+  "experience_level": "entry/junior/mid/senior",
+  "education": "highest degree and field of study",
+  "summary": "2-3 sentence professional summary of this candidate",
+  "search_queries": ["5-8 specific Adzuna job search queries tailored to this resume, e.g. 'entry level python developer', 'junior data analyst SQL', 'associate software engineer React']
+}}"""
+
+        data = json.loads(gemini_generate(prompt))
+
+        # Upsert profile (always id=1)
+        profile = Profile.query.filter_by(id=1).first()
+        if profile is None:
+            profile = Profile(id=1)
+            db.session.add(profile)
+
+        profile.skills           = json.dumps(data.get("skills", []))
+        profile.job_titles       = json.dumps(data.get("job_titles", []))
+        profile.search_queries   = json.dumps(data.get("search_queries", []))
+        profile.summary          = data.get("summary", "")
+        profile.education        = data.get("education", "")
+        profile.experience_level = data.get("experience_level", "")
+        db.session.commit()
+
+        # Fetch and cache jobs from Adzuna using the profile's queries
+        queries = data.get("search_queries", [])
+        if queries:
+            _refresh_jobs(queries)
+
+        return jsonify({
+            "skills":           data.get("skills", []),
+            "job_titles":       data.get("job_titles", []),
+            "search_queries":   data.get("search_queries", []),
+            "summary":          data.get("summary", ""),
+            "education":        data.get("education", ""),
+            "experience_level": data.get("experience_level", ""),
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/resume", methods=["DELETE"])
+def clear_resume():
+    Profile.query.filter_by(id=1).delete()
+    # Clear cached jobs so next upload gets fresh results
+    Job.query.filter(Job.is_saved == False).delete()
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+def _refresh_jobs(queries: list[str]):
+    """Fetch jobs from Adzuna and store new ones."""
+    results = fetch_jobs(queries)
+    count = 0
+    for data in results:
+        if Job.query.filter_by(url=data["url"]).first():
+            continue
+        data["industry"] = classify_industry(data.get("title", ""), data.get("description_snippet", ""))
+        data["source"]   = "adzuna"
+        job = Job(**{k: v for k, v in data.items() if hasattr(Job, k)})
+        db.session.add(job)
+        count += 1
+    db.session.commit()
+    print(f"[refresh] Added {count} new jobs")
 
 
 @app.route("/api/jobs")
@@ -153,21 +236,25 @@ def get_jobs():
 
     profile = _active_profile()
     if profile:
-        profile_vec = load_embedding(profile.embedding)
-        if profile_vec:
-            unembedded = [j for j in jobs if not j.embedding][:50]
-            if unembedded:
-                _embed_jobs(unembedded)
-
-            scored = []
-            for j in jobs:
-                vec   = load_embedding(j.embedding)
-                score = round(cosine_similarity(profile_vec, vec) * 100) if vec else 0
-                scored.append((j, score))
-            scored.sort(key=lambda x: x[1], reverse=True)
-            return jsonify([j.to_dict(match_score=s) for j, s in scored])
+        skills = _load_json(profile.skills)
+        titles = _load_json(profile.job_titles)
+        scored = [(j, calc_match_score(j, skills, titles)) for j in jobs]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return jsonify([j.to_dict(match_score=s) for j, s in scored])
 
     return jsonify([j.to_dict() for j in jobs])
+
+
+@app.route("/api/jobs/refresh", methods=["POST"])
+def refresh_jobs():
+    profile = _active_profile()
+    if not profile:
+        return jsonify({"error": "Upload a resume first to find matching jobs."}), 400
+    queries = _load_json(profile.search_queries)
+    if not queries:
+        return jsonify({"error": "No search queries found in profile."}), 400
+    _refresh_jobs(queries)
+    return jsonify({"success": True})
 
 
 @app.route("/api/filters")
@@ -193,103 +280,37 @@ def analyze_job(job_id):
     job = Job.query.get_or_404(job_id)
 
     if job.ai_description:
-        return jsonify({"description": job.ai_description, "salary_estimate": job.ai_salary_estimate or "Not available"})
+        return jsonify({
+            "description":     job.ai_description,
+            "salary_estimate": job.ai_salary_estimate or "Not available",
+        })
 
     if not os.getenv("GEMINI_API_KEY"):
         return jsonify({"error": "GEMINI_API_KEY not set"}), 500
 
     try:
-        prompt = f"""You are a job listing analyst. Analyze this job posting and respond with ONLY valid JSON — no markdown, no code blocks.
+        prompt = f"""Analyze this job posting and respond with ONLY valid JSON — no markdown, no code blocks.
 
 Job Title: {job.title}
 Company: {job.company}
 Location: {job.location or "Not specified"}
 Description: {job.description_snippet or "Not provided"}
 
-Return exactly this JSON structure:
+Return exactly this JSON:
 {{
-  "description": "Write 2-3 paragraphs describing what this role involves, key responsibilities, and what the company is looking for.",
-  "salary_estimate": "Realistic US salary range (e.g. '$75,000 - $95,000/year')."
+  "description": "2-3 paragraphs describing the role, responsibilities, and what the company is looking for.",
+  "salary_estimate": "Realistic US salary range, e.g. '$75,000 - $95,000/year'."
 }}"""
 
-        data = json.loads(gemini_generate(prompt))
-        job.ai_description     = data.get("description", "")
-        job.ai_salary_estimate = data.get("salary_estimate", "Not available")
+        result = json.loads(gemini_generate(prompt))
+        job.ai_description     = result.get("description", "")
+        job.ai_salary_estimate = result.get("salary_estimate", "Not available")
         db.session.commit()
 
         return jsonify({"description": job.ai_description, "salary_estimate": job.ai_salary_estimate})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/resume/upload", methods=["POST"])
-def upload_resume():
-    if "resume" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-    file = request.files["resume"]
-    if not file.filename.lower().endswith(".pdf"):
-        return jsonify({"error": "Only PDF files are supported"}), 400
-    if not os.getenv("GEMINI_API_KEY"):
-        return jsonify({"error": "GEMINI_API_KEY not configured"}), 500
-
-    try:
-        import pypdf, io as _io
-        reader = pypdf.PdfReader(_io.BytesIO(file.read()))
-        text   = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
-        if not text:
-            return jsonify({"error": "Could not extract text — make sure the PDF is not a scanned image."}), 400
-
-        prompt = f"""Analyze this resume for job matching. Return ONLY valid JSON — no markdown, no code blocks.
-
-Resume:
-{text[:8000]}
-
-Return exactly this JSON structure:
-{{
-  "skills": ["every technical skill, tool, language, and framework mentioned"],
-  "job_titles": ["job titles held or targeted"],
-  "industries": ["relevant industries"],
-  "years_experience": 0,
-  "education": "highest degree and field",
-  "summary": "2-3 sentence professional summary",
-  "search_text": "A 3-5 sentence description of this candidate written to maximise semantic similarity with relevant job postings. Include target roles, seniority level, key technical skills, domain experience, and career goals."
-}}"""
-
-        profile_data = json.loads(gemini_generate(prompt))
-        search_text  = profile_data.get("search_text") or profile_data.get("summary") or text[:500]
-
-        profile_vec = embed_one(search_text)
-
-        profile = Profile.query.filter_by(id=1).first()
-        if profile is None:
-            profile = Profile(id=1)
-            db.session.add(profile)
-
-        profile.skills      = json.dumps(profile_data.get("skills", []))
-        profile.job_titles  = json.dumps(profile_data.get("job_titles", []))
-        profile.search_text = search_text
-        profile.embedding   = dump_embedding(profile_vec)
-        db.session.commit()
-
-        return jsonify({
-            "skills":           profile_data.get("skills", []),
-            "job_titles":       profile_data.get("job_titles", []),
-            "industries":       profile_data.get("industries", []),
-            "years_experience": profile_data.get("years_experience", 0),
-            "education":        profile_data.get("education", ""),
-            "summary":          profile_data.get("summary", ""),
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/resume", methods=["DELETE"])
-def clear_resume():
-    Profile.query.filter_by(id=1).delete()
-    db.session.commit()
-    return jsonify({"success": True})
 
 
 @app.route("/api/jobs/<int:job_id>/save", methods=["POST"])
@@ -316,26 +337,5 @@ def update_notes(job_id):
     return jsonify({"success": True})
 
 
-@app.route("/api/scrape", methods=["POST", "GET"])
-def trigger_scrape():
-    if request.method == "GET":
-        cron_secret = os.getenv("CRON_SECRET")
-        if cron_secret and request.headers.get("Authorization", "") != f"Bearer {cron_secret}":
-            return jsonify({"error": "Unauthorized"}), 401
-    refresh_jobs()
-    return jsonify({"success": True})
-
-
 if __name__ == "__main__":
-    try:
-        from apscheduler.schedulers.background import BackgroundScheduler
-        scheduler = BackgroundScheduler()
-        scheduler.add_job(
-            func=lambda: app.app_context().__enter__() or refresh_jobs(),
-            trigger="interval", hours=6, id="refresh_jobs",
-        )
-        scheduler.start()
-    except Exception as e:
-        print(f"[scheduler] Could not start: {e}")
-
-    app.run(debug=True, use_reloader=False)
+    app.run(debug=True)

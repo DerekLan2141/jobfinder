@@ -35,11 +35,16 @@ with app.app_context():
                 ))
             except Exception:
                 pass
-        # Also clean up old job columns that no longer exist in the model
-        for _col in ["embedding", "matched_keywords", "ai_salary_estimate", "source"]:
+        # Add new job columns introduced in rewrite
+        for _col, _ddl in [
+            ("salary",             "TEXT"),
+            ("source",             "VARCHAR(50)"),
+            ("ai_description",     "TEXT"),
+            ("ai_salary_estimate", "VARCHAR(200)"),
+        ]:
             try:
                 _conn.execute(db.text(
-                    f"ALTER TABLE job ADD COLUMN IF NOT EXISTS {_col} TEXT"
+                    f"ALTER TABLE job ADD COLUMN IF NOT EXISTS {_col} {_ddl}"
                 ))
             except Exception:
                 pass

@@ -21,6 +21,7 @@ class Job(db.Model):
     notes               = db.Column(db.Text)
     ai_description      = db.Column(db.Text)
     ai_salary_estimate  = db.Column(db.String(200))
+    cv_guide            = db.Column(db.Text)
 
     def to_dict(self, match_score=None):
         d = {

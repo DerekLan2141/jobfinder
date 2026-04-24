@@ -86,6 +86,7 @@
         <span class="card-match hidden"></span>
       </div>
       <div class="card-snippet"></div>
+      <button class="btn-cv-guide">📝 CV Guide</button>
       <textarea class="card-notes" placeholder="Add notes..."></textarea>
     </div>
   </template>
@@ -106,6 +107,21 @@
       <div class="modal-desc" id="modalDesc"></div>
       <div class="modal-footer">
         <a class="btn-primary" id="modalLink" href="" target="_blank" rel="noopener">View Listing ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="cvModal" class="modal-overlay hidden">
+    <div class="modal">
+      <button class="modal-close" id="cvModalClose">&#10005;</button>
+      <div class="modal-head">
+        <h2 id="cvModalTitle"></h2>
+        <span class="modal-company" id="cvModalCompany"></span>
+      </div>
+      <div class="modal-section-title">Resume Suggestions for This Role</div>
+      <div id="cvModalContent" class="cv-suggestions"></div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="cvModalDone">Done</button>
       </div>
     </div>
   </div>

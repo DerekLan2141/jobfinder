@@ -41,6 +41,7 @@ with app.app_context():
             ("source",             "VARCHAR(50)"),
             ("ai_description",     "TEXT"),
             ("ai_salary_estimate", "VARCHAR(200)"),
+            ("cv_guide",           "TEXT"),
         ]:
             try:
                 _conn.execute(db.text(
@@ -344,6 +345,57 @@ Return exactly this JSON:
         db.session.commit()
 
         return jsonify({"description": job.ai_description, "salary_estimate": job.ai_salary_estimate})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/jobs/<int:job_id>/cv-guide", methods=["POST"])
+def cv_guide(job_id):
+    job = Job.query.get_or_404(job_id)
+
+    if job.cv_guide:
+        return jsonify({"suggestions": json.loads(job.cv_guide)})
+
+    profile = _active_profile()
+    if not profile:
+        return jsonify({"error": "Upload a resume first"}), 400
+    if not os.getenv("GEMINI_API_KEY"):
+        return jsonify({"error": "GEMINI_API_KEY not set"}), 500
+
+    try:
+        skills = _load_json(profile.skills)
+        titles = _load_json(profile.job_titles)
+
+        prompt = f"""You are a career coach. Given this job listing and candidate profile, give specific actionable suggestions to tailor their resume for this exact role. Be direct and practical.
+
+Job Title: {job.title}
+Company: {job.company}
+Location: {job.location or "Not specified"}
+Description: {job.description_snippet or "Not provided"}
+
+Candidate Profile:
+- Skills: {', '.join(skills[:25])}
+- Target Roles: {', '.join(titles)}
+- Education: {profile.education or "Not specified"}
+- Summary: {profile.summary or "Not provided"}
+
+Return ONLY valid JSON with 4-6 suggestions:
+{{
+  "suggestions": [
+    {{
+      "tip": "short actionable title (e.g. Highlight Python projects)",
+      "detail": "specific thing to add, reframe, or emphasize on the resume to stand out for this role"
+    }}
+  ]
+}}"""
+
+        result = json.loads(gemini_generate(prompt))
+        suggestions = result.get("suggestions", [])
+        job.cv_guide = json.dumps(suggestions)
+        db.session.commit()
+
+        return jsonify({"suggestions": suggestions})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

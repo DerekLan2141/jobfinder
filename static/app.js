@@ -128,9 +128,15 @@ function renderJobs(jobs) {
     notes.addEventListener("click", e => e.stopPropagation());
     notes.addEventListener("blur", e => saveNotes(job.id, e.target.value));
 
+    // CV Guide button
+    card.querySelector(".btn-cv-guide").addEventListener("click", e => {
+      e.stopPropagation();
+      openCVGuide(job);
+    });
+
     // Modal on card click
     card.addEventListener("click", e => {
-      if (e.target.closest(".btn-save, .btn-dismiss, .card-notes, .card-title")) return;
+      if (e.target.closest(".btn-save, .btn-dismiss, .card-notes, .card-title, .btn-cv-guide")) return;
       openModal(job);
     });
 
@@ -203,7 +209,49 @@ document.getElementById("modalClose").addEventListener("click", closeModal);
 document.getElementById("modal").addEventListener("click", e => {
   if (e.target === document.getElementById("modal")) closeModal();
 });
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+// ── CV Guide modal ─────────────────────────────────────────────────────────
+async function openCVGuide(job) {
+  const modal   = document.getElementById("cvModal");
+  const content = document.getElementById("cvModalContent");
+
+  document.getElementById("cvModalTitle").textContent   = job.title;
+  document.getElementById("cvModalCompany").textContent = job.company;
+  content.innerHTML = '<div class="ai-loading"><div class="spinner"></div> Generating your CV guide...</div>';
+
+  modal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+
+  try {
+    const res  = await fetch(`/api/jobs/${job.id}/cv-guide`, { method: "POST" });
+    const data = await res.json();
+
+    if (data.error) {
+      content.innerHTML = `<div class="modal-error">${data.error}</div>`;
+    } else {
+      content.innerHTML = data.suggestions.map(s => `
+        <div class="cv-suggestion">
+          <div class="cv-tip">✓ ${s.tip}</div>
+          <div class="cv-detail">${s.detail}</div>
+        </div>
+      `).join("");
+    }
+  } catch {
+    content.innerHTML = '<div class="modal-error">Failed to generate guide. Please try again.</div>';
+  }
+}
+
+function closeCVModal() {
+  document.getElementById("cvModal").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+document.getElementById("cvModalClose").addEventListener("click", closeCVModal);
+document.getElementById("cvModalDone").addEventListener("click", closeCVModal);
+document.getElementById("cvModal").addEventListener("click", e => {
+  if (e.target === document.getElementById("cvModal")) closeCVModal();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") { closeModal(); closeCVModal(); } });
 
 // ── Location multi-select ──────────────────────────────────────────────────
 const locBox         = document.getElementById("locBox");

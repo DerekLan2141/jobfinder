@@ -653,6 +653,51 @@ header .subtitle {
   border: 1px solid #bfdbfe;
 }
 
+/* ── CV Guide ─────────────────────────────────────────────────────────────── */
+.btn-cv-guide {
+  width: 100%;
+  padding: 0.4rem 0.75rem;
+  border: 1.5px dashed #a5b4fc;
+  border-radius: 8px;
+  background: none;
+  color: var(--indigo);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all .15s;
+  text-align: left;
+}
+.btn-cv-guide:hover { background: var(--indigo-light); border-style: solid; }
+
+.cv-suggestions {
+  padding: 0 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.cv-suggestion {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-left: 3px solid var(--indigo);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.cv-tip {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--navy);
+  margin-bottom: 0.3rem;
+}
+
+.cv-detail {
+  font-size: 0.82rem;
+  color: var(--gray-700);
+  line-height: 1.6;
+}
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   header { padding: 1rem; position: static; }

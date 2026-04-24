@@ -21,6 +21,29 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+    # Migrate existing profile table — add columns introduced in rewrite
+    with db.engine.connect() as _conn:
+        for _col, _ddl in [
+            ("search_queries",   "TEXT"),
+            ("experience_level", "VARCHAR(50)"),
+            ("summary",          "TEXT"),
+            ("education",        "VARCHAR(300)"),
+        ]:
+            try:
+                _conn.execute(db.text(
+                    f"ALTER TABLE profile ADD COLUMN IF NOT EXISTS {_col} {_ddl}"
+                ))
+            except Exception:
+                pass
+        # Also clean up old job columns that no longer exist in the model
+        for _col in ["embedding", "matched_keywords", "ai_salary_estimate", "source"]:
+            try:
+                _conn.execute(db.text(
+                    f"ALTER TABLE job ADD COLUMN IF NOT EXISTS {_col} TEXT"
+                ))
+            except Exception:
+                pass
+        _conn.commit()
 
 
 # ── Gemini ─────────────────────────────────────────────────────────────────────

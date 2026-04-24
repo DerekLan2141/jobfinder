@@ -20,7 +20,10 @@ function showStatus(msg, type) {
 }
 
 // ── Match scoring ──────────────────────────────────────────────────────────
+// Primary: server-side vector score (job.match_score 0-100).
+// Fallback: keyword overlap when server hasn't scored yet.
 function calcMatch(job, profile) {
+  if (job.match_score !== undefined) return job.match_score;
   if (!profile?.skills?.length) return null;
   const skills = profile.skills.map(s => s.toLowerCase());
   const haystack = [job.title, job.description_snippet, job.matched_keywords, job.industry]
@@ -49,7 +52,10 @@ function renderJobs(jobs) {
     return;
   }
 
-  if (resumeProfile) {
+  // Server already sorts by vector score when a profile is active.
+  // Only re-sort client-side when server scores are absent (no profile on server).
+  const hasServerScores = jobs.some(j => j.match_score !== undefined);
+  if (resumeProfile && !hasServerScores) {
     jobs = [...jobs].sort((a, b) => calcMatch(b, resumeProfile) - calcMatch(a, resumeProfile));
   }
 
@@ -321,10 +327,11 @@ document.getElementById("resumeInput").addEventListener("change", async e => {
   }
 });
 
-document.getElementById("resumeClear").addEventListener("click", () => {
+document.getElementById("resumeClear").addEventListener("click", async () => {
   resumeProfile = null;
   localStorage.removeItem("resumeProfile");
   syncResumeUI();
+  await fetch("/api/resume", { method: "DELETE" });
   load();
 });
 

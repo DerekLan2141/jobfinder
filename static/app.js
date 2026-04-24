@@ -1,10 +1,9 @@
 // ── State ──────────────────────────────────────────────────────────────────
-let profile        = null;   // active resume profile from server
+let profile        = null;
 let savedOnly      = false;
 let searchQuery    = "";
-let locationFilters = [];
+let locationFilter = "";
 let industryFilter = "";
-let availableLocations = [];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function debounce(fn, ms) {
@@ -64,7 +63,7 @@ async function fetchJobs() {
   const p = new URLSearchParams();
   if (savedOnly) p.set("saved", "true");
   if (searchQuery) p.set("search", searchQuery);
-  if (locationFilters.length) p.set("location", locationFilters.join(","));
+  if (locationFilter) p.set("location", locationFilter);
   if (industryFilter) p.set("industry", industryFilter);
   const res = await fetch(`/api/jobs?${p}`);
   return res.json();
@@ -205,58 +204,11 @@ document.getElementById("modal").addEventListener("click", e => {
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
-// ── Location multi-select ──────────────────────────────────────────────────
-const locBox      = document.getElementById("locBox");
-const locInput    = document.getElementById("locInput");
-const locTags     = document.getElementById("locTags");
-const locDropdown = document.getElementById("locDropdown");
-const locPlaceholder = document.getElementById("locPlaceholder");
-
-function renderLocTags() {
-  locTags.innerHTML = locationFilters.map(loc =>
-    `<span class="loc-tag">${loc}<button data-loc="${escHtml(loc)}">×</button></span>`
-  ).join("");
-  locTags.querySelectorAll("button").forEach(btn =>
-    btn.addEventListener("click", e => { e.stopPropagation(); removeLocation(btn.dataset.loc); })
-  );
-  locPlaceholder.style.display = locationFilters.length ? "none" : "";
-}
-
-function showLocDropdown(query = "") {
-  const q = query.toLowerCase();
-  const opts = availableLocations.filter(l => l.toLowerCase().includes(q) && !locationFilters.includes(l));
-  if (!opts.length) { locDropdown.classList.add("hidden"); return; }
-  locDropdown.innerHTML = opts.slice(0, 12).map(l =>
-    `<div class="loc-option" data-loc="${escHtml(l)}">${l}</div>`
-  ).join("");
-  locDropdown.querySelectorAll(".loc-option").forEach(o =>
-    o.addEventListener("mousedown", e => { e.preventDefault(); addLocation(o.dataset.loc); })
-  );
-  locDropdown.classList.remove("hidden");
-}
-
-function addLocation(loc) {
-  if (!locationFilters.includes(loc)) {
-    locationFilters.push(loc);
-    renderLocTags();
-    locInput.value = "";
-    locDropdown.classList.add("hidden");
-    load();
-  }
-}
-
-function removeLocation(loc) {
-  locationFilters = locationFilters.filter(l => l !== loc);
-  renderLocTags();
-  load();
-}
-
-locBox.addEventListener("click", () => locInput.focus());
-locInput.addEventListener("focus", () => showLocDropdown(locInput.value));
-locInput.addEventListener("input", () => showLocDropdown(locInput.value));
-locInput.addEventListener("blur", () => setTimeout(() => locDropdown.classList.add("hidden"), 150));
-
 // ── Filters ────────────────────────────────────────────────────────────────
+document.getElementById("locationSelect").addEventListener("change", e => {
+  locationFilter = e.target.value;
+  load();
+});
 document.getElementById("savedToggle").addEventListener("click", function () {
   savedOnly = !savedOnly;
   this.classList.toggle("active", savedOnly);
@@ -276,15 +228,25 @@ document.getElementById("searchInput").addEventListener("input", debounce(e => {
 async function loadFilters() {
   try {
     const data = await (await fetch("/api/filters")).json();
-    availableLocations = data.locations || [];
-    const sel = document.getElementById("industrySelect");
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">All Industries</option>';
+
+    const locSel = document.getElementById("locationSelect");
+    const curLoc = locSel.value;
+    locSel.innerHTML = '<option value="">All Locations</option>';
+    (data.locations || []).forEach(loc => {
+      const o = document.createElement("option");
+      o.value = loc; o.textContent = loc;
+      if (loc === curLoc) o.selected = true;
+      locSel.appendChild(o);
+    });
+
+    const indSel = document.getElementById("industrySelect");
+    const curInd = indSel.value;
+    indSel.innerHTML = '<option value="">All Industries</option>';
     (data.industries || []).forEach(ind => {
       const o = document.createElement("option");
       o.value = ind; o.textContent = ind;
-      if (ind === cur) o.selected = true;
-      sel.appendChild(o);
+      if (ind === curInd) o.selected = true;
+      indSel.appendChild(o);
     });
   } catch {}
 }
@@ -325,13 +287,14 @@ document.getElementById("resumeInput").addEventListener("change", async e => {
 document.getElementById("resumeClear").addEventListener("click", async () => {
   await fetch("/api/resume", { method: "DELETE" });
   profile = null;
-  locationFilters = [];
-  industryFilter  = "";
-  searchQuery     = "";
-  savedOnly       = false;
+  locationFilter = "";
+  industryFilter = "";
+  searchQuery    = "";
+  savedOnly      = false;
   document.getElementById("savedToggle").classList.remove("active");
   document.getElementById("searchInput").value = "";
-  renderLocTags();
+  document.getElementById("locationSelect").value = "";
+  document.getElementById("industrySelect").value = "";
   syncProfileUI();
   hideStatus();
 });

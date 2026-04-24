@@ -3,48 +3,24 @@ Adzuna job API — https://developer.adzuna.com
 Fetches jobs using dynamic search queries derived from a resume profile.
 """
 import os
-import re
 import requests
 
 BASE_URL = "https://api.adzuna.com/v1/api/jobs/us/search/{page}"
 
-ENTRY_LEVEL_KEYWORDS = [
-    "entry level", "entry-level", "new grad", "new graduate", "recent graduate",
-    "analyst", "0-1 year", "0-2 year", "0-3 year",
-    "no experience", "early career", "internship", "intern", "trainee",
-    "graduate program", "rotational program",
+# Exclude senior/leadership roles from results
+_SENIOR_KEYWORDS = [
+    "senior", "sr.", "lead ", "staff ", "principal", "manager", "director",
+    "vp ", "vice president", "head of", "chief", "president", "architect",
+    "cto", "ceo", "cfo",
 ]
 
 
-def _is_entry_level(title: str, description: str) -> bool:
-    if "junior" in title.lower():
-        return False
-    text = (title + " " + description).lower()
-    return any(kw in text for kw in ENTRY_LEVEL_KEYWORDS)
+def _is_entry_level(title: str) -> bool:
+    t = title.lower()
+    return not any(kw in t for kw in _SENIOR_KEYWORDS)
 
 
-_US_STATES = re.compile(
-    r'\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|'
-    r'MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|'
-    r'TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\b'
-)
-_US_KEYWORDS = [
-    "united states", "usa", "u.s.", "remote",
-    "new york", "los angeles", "chicago", "houston", "phoenix",
-    "san francisco", "seattle", "boston", "austin", "denver",
-    "atlanta", "miami", "dallas", "washington", "philadelphia",
-    "san diego", "portland", "nashville", "minneapolis",
-]
-
-
-def _is_us(location: str) -> bool:
-    if not location:
-        return True
-    loc = location.lower()
-    return any(kw in loc for kw in _US_KEYWORDS) or bool(_US_STATES.search(location))
-
-
-def fetch_jobs(queries: list[str], results_per_page: int = 20, max_pages: int = 2) -> list[dict]:
+def fetch_jobs(queries: list[str], results_per_page: int = 50, max_pages: int = 1) -> list[dict]:
     """Fetch jobs from Adzuna for a list of search queries."""
     app_id  = os.getenv("ADZUNA_APP_ID")
     app_key = os.getenv("ADZUNA_APP_KEY")
@@ -84,7 +60,8 @@ def fetch_jobs(queries: list[str], results_per_page: int = 20, max_pages: int = 
                 title   = job.get("title", "").strip()
                 company = (job.get("company") or {}).get("display_name", "").strip()
                 area    = (job.get("location") or {}).get("area", [])
-                location = ", ".join(area[-2:]) if len(area) >= 2 else ", ".join(area)
+                # Use city name only (last element of area hierarchy)
+                location = area[-1] if area else ""
                 url         = job.get("redirect_url", "").strip()
                 description = job.get("description", "")
                 date_posted = (job.get("created") or "")[:10]
@@ -100,9 +77,7 @@ def fetch_jobs(queries: list[str], results_per_page: int = 20, max_pages: int = 
 
                 if not title or not url or url in seen:
                     continue
-                if not _is_us(location):
-                    continue
-                if not _is_entry_level(title, description):
+                if not _is_entry_level(title):
                     continue
                 seen.add(url)
 

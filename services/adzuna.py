@@ -10,8 +10,8 @@ BASE_URL = "https://api.adzuna.com/v1/api/jobs/us/search/{page}"
 
 # Exclude senior/leadership roles — word-boundary regex to avoid false matches
 _SENIOR_RE = re.compile(
-    r'\b(senior|sr|lead|staff|principal|manager|director|vp|vice\s+president|'
-    r'head\s+of|chief|president|architect|cto|ceo|cfo|associate|junior)\b',
+    r'\b(senior|sr\b|lead|manager|director|vp|vice\s+president|'
+    r'head\s+of|chief|president|cto|ceo|cfo|junior|associate)\b',
     re.IGNORECASE,
 )
 

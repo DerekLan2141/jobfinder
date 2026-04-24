@@ -225,9 +225,9 @@ def clear_resume():
     return jsonify({"success": True})
 
 
-def _refresh_jobs(queries: list[str], limit: int = 3):
+def _refresh_jobs(queries: list[str], limit: int = 4, max_pages: int = 1):
     """Fetch jobs from Adzuna and store new ones."""
-    results = fetch_jobs(queries[:limit], results_per_page=50, max_pages=1)
+    results = fetch_jobs(queries[:limit], results_per_page=50, max_pages=max_pages)
     count = 0
     for data in results:
         if Job.query.filter_by(url=data["url"]).first():
@@ -287,7 +287,7 @@ def refresh_jobs():
     if not queries:
         return jsonify({"error": "No search queries found in profile."}), 400
     try:
-        _refresh_jobs(queries, limit=6)
+        _refresh_jobs(queries, limit=8, max_pages=2)
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

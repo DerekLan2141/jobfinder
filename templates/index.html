@@ -47,9 +47,14 @@
   <div class="toolbar hidden" id="toolbar">
     <div class="toolbar-left">
       <button class="pill" id="savedToggle">Saved Only</button>
-      <select class="pill pill-select" id="locationSelect">
-        <option value="">All Locations</option>
-      </select>
+      <div class="loc-wrap">
+        <div class="loc-box" id="locBox">
+          <span class="loc-placeholder" id="locPlaceholder">Location</span>
+          <div class="loc-tags" id="locTags"></div>
+          <input class="loc-input" id="locInput" type="text" autocomplete="off" />
+        </div>
+        <div class="loc-dropdown hidden" id="locDropdown"></div>
+      </div>
       <select class="pill pill-select" id="industrySelect">
         <option value="">All Industries</option>
       </select>

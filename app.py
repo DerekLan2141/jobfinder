@@ -216,8 +216,9 @@ def clear_resume():
 
 
 def _refresh_jobs(queries: list[str]):
-    """Fetch jobs from Adzuna and store new ones."""
-    results = fetch_jobs(queries)
+    """Fetch jobs from Adzuna and store new ones.
+    Limits to 3 queries × 1 page to stay within Vercel's 10s timeout."""
+    results = fetch_jobs(queries[:3], results_per_page=20, max_pages=1)
     count = 0
     for data in results:
         if Job.query.filter_by(url=data["url"]).first():
@@ -276,8 +277,11 @@ def refresh_jobs():
     queries = _load_json(profile.search_queries)
     if not queries:
         return jsonify({"error": "No search queries found in profile."}), 400
-    _refresh_jobs(queries)
-    return jsonify({"success": True})
+    try:
+        _refresh_jobs(queries)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/filters")

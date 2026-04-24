@@ -1,42 +1,59 @@
 """
 Gemini text-embedding-004 helpers.
+Calls the REST API directly to avoid google-genai SDK routing issues.
 Embeddings are 768-dimensional float vectors stored as JSON in the DB.
 """
 import json
 import os
+import requests
 
-
-EMBED_MODEL = "text-embedding-004"
+_EMBED_URL = (
+    "https://generativelanguage.googleapis.com"
+    "/v1/models/text-embedding-004:embedContent"
+)
+_BATCH_URL = (
+    "https://generativelanguage.googleapis.com"
+    "/v1/models/text-embedding-004:batchEmbedContents"
+)
 _BATCH_SIZE = 100
-
-_gemini_client = None
-
-
-def _client():
-    global _gemini_client
-    if _gemini_client is None:
-        from google import genai
-        _gemini_client = genai.Client(
-            api_key=os.getenv("GEMINI_API_KEY"),
-            http_options={"api_version": "v1"},
-        )
-    return _gemini_client
 
 
 def embed_one(text: str) -> list[float]:
-    result = _client().models.embed_content(model=EMBED_MODEL, contents=text)
-    return list(result.embeddings[0].values)
+    api_key = os.getenv("GEMINI_API_KEY")
+    resp = requests.post(
+        _EMBED_URL,
+        params={"key": api_key},
+        json={"model": "models/text-embedding-004",
+              "content": {"parts": [{"text": text}]}},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json()["embedding"]["values"]
 
 
 def embed_batch(texts: list[str]) -> list[list[float]]:
     if not texts:
         return []
-    client = _client()
+    api_key  = os.getenv("GEMINI_API_KEY")
     all_vecs: list[list[float]] = []
+
     for i in range(0, len(texts), _BATCH_SIZE):
         chunk = texts[i : i + _BATCH_SIZE]
-        result = client.models.embed_content(model=EMBED_MODEL, contents=chunk)
-        all_vecs.extend(list(e.values) for e in result.embeddings)
+        requests_body = [
+            {"model": "models/text-embedding-004",
+             "content": {"parts": [{"text": t}]}}
+            for t in chunk
+        ]
+        resp = requests.post(
+            _BATCH_URL,
+            params={"key": api_key},
+            json={"requests": requests_body},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        for item in resp.json().get("embeddings", []):
+            all_vecs.append(item["values"])
+
     return all_vecs
 
 

@@ -45,7 +45,7 @@ function syncProfileUI() {
     document.getElementById("profileSkillCount").textContent =
       profile.skills?.length ? `· ${profile.skills.length} skills detected` : "";
 
-    label.textContent = "&#128196; Change Resume";
+    label.innerHTML = "&#128196; Change Resume";
     clearBtn.classList.remove("hidden");
   } else {
     prompt.classList.remove("hidden");
@@ -53,7 +53,7 @@ function syncProfileUI() {
     toolbar.classList.add("hidden");
     jobList.innerHTML = "";
 
-    label.textContent = "&#128196; Upload Resume";
+    label.innerHTML = "&#128196; Upload Resume";
     clearBtn.classList.add("hidden");
   }
 }

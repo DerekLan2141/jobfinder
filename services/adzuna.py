@@ -3,21 +3,21 @@ Adzuna job API — https://developer.adzuna.com
 Fetches jobs using dynamic search queries derived from a resume profile.
 """
 import os
+import re
 import requests
 
 BASE_URL = "https://api.adzuna.com/v1/api/jobs/us/search/{page}"
 
-# Exclude senior/leadership roles from results
-_SENIOR_KEYWORDS = [
-    "senior", "sr.", "lead ", "staff ", "principal", "manager", "director",
-    "vp ", "vice president", "head of", "chief", "president", "architect",
-    "cto", "ceo", "cfo",
-]
+# Exclude senior/leadership roles — word-boundary regex to avoid false matches
+_SENIOR_RE = re.compile(
+    r'\b(senior|sr|lead|staff|principal|manager|director|vp|vice\s+president|'
+    r'head\s+of|chief|president|architect|cto|ceo|cfo)\b',
+    re.IGNORECASE,
+)
 
 
 def _is_entry_level(title: str) -> bool:
-    t = title.lower()
-    return not any(kw in t for kw in _SENIOR_KEYWORDS)
+    return not _SENIOR_RE.search(title)
 
 
 def fetch_jobs(queries: list[str], results_per_page: int = 50, max_pages: int = 1) -> list[dict]:
@@ -60,8 +60,8 @@ def fetch_jobs(queries: list[str], results_per_page: int = 50, max_pages: int = 
                 title   = job.get("title", "").strip()
                 company = (job.get("company") or {}).get("display_name", "").strip()
                 area    = (job.get("location") or {}).get("area", [])
-                # Use city name only (last element of area hierarchy)
-                location = area[-1] if area else ""
+                # area is ["US", "State", "City"] — use state (index 1)
+                location = area[1] if len(area) >= 2 else (area[0] if area else "")
                 url         = job.get("redirect_url", "").strip()
                 description = job.get("description", "")
                 date_posted = (job.get("created") or "")[:10]

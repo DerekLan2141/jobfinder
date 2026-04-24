@@ -45,7 +45,7 @@ function syncProfileUI() {
     document.getElementById("profileSkillCount").textContent =
       profile.skills?.length ? `· ${profile.skills.length} skills detected` : "";
 
-    label.innerHTML = "&#128196; Change Resume";
+    label.innerHTML = "📄 Change Resume";
     clearBtn.classList.remove("hidden");
   } else {
     prompt.classList.remove("hidden");
@@ -53,7 +53,7 @@ function syncProfileUI() {
     toolbar.classList.add("hidden");
     jobList.innerHTML = "";
 
-    label.innerHTML = "&#128196; Upload Resume";
+    label.innerHTML = "📄 Upload Resume";
     clearBtn.classList.add("hidden");
   }
 }
@@ -278,7 +278,7 @@ document.getElementById("resumeInput").addEventListener("change", async e => {
   } catch {
     showStatus("Failed to analyze resume.", "error");
   } finally {
-    label.innerHTML = profile ? "&#128196; Change Resume" : "&#128196; Upload Resume";
+    label.innerHTML = profile ? "📄 Change Resume" : "📄 Upload Resume";
     e.target.value = "";
   }
 });

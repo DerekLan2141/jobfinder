@@ -1,5 +1,6 @@
 /* ── Reset & base ─────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.hidden { display: none !important; }
 
 :root {
   --navy:   #1a1a2e;
@@ -234,20 +235,6 @@ header .subtitle {
   white-space: nowrap;
 }
 
-.resume-clear {
-  width: 20px; height: 20px;
-  border: 1px solid var(--gray-300);
-  border-radius: 4px;
-  background: none;
-  cursor: pointer;
-  font-size: 0.65rem;
-  color: var(--gray-500);
-  display: flex; align-items: center; justify-content: center;
-  transition: all .15s;
-  padding: 0;
-}
-.resume-clear:hover { border-color: var(--red-fg); color: var(--red-fg); }
-
 /* ── Status bar ───────────────────────────────────────────────────────────── */
 .status {
   margin: 0.75rem 2rem 0;
@@ -479,6 +466,7 @@ header .subtitle {
 
 .modal-section-title {
   padding: 0 1.5rem;
+  margin-top: 1rem;
   margin-bottom: 0.4rem;
   font-size: 0.65rem;
   font-weight: 700;

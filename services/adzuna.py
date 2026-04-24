@@ -17,6 +17,8 @@ ENTRY_LEVEL_KEYWORDS = [
 
 
 def _is_entry_level(title: str, description: str) -> bool:
+    if "junior" in title.lower():
+        return False
     text = (title + " " + description).lower()
     return any(kw in text for kw in ENTRY_LEVEL_KEYWORDS)
 

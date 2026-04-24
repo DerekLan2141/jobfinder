@@ -97,17 +97,18 @@ def classify_industry(title: str, snippet: str = "") -> str:
 
 
 def calc_match_score(job: Job, skills: list[str], titles: list[str]) -> int:
-    """Keyword overlap score 0-100 between a job and profile terms."""
+    """Keyword overlap score normalised to 80-99% range."""
     if not skills and not titles:
-        return 0
+        return 80
     haystack = " ".join(filter(None, [
         job.title, job.company, job.description_snippet, job.industry
     ])).lower()
     terms = [t.lower() for t in (skills + titles) if t]
     if not terms:
-        return 0
+        return 80
     hits = sum(1 for t in terms if t in haystack)
-    return round((hits / len(terms)) * 100)
+    raw = hits / len(terms)  # 0.0–1.0
+    return min(99, 80 + round(raw * 19))
 
 
 def _active_profile() -> Profile | None:
@@ -127,6 +128,10 @@ def _load_json(val) -> list:
 
 @app.route("/")
 def index():
+    # Fresh start on every page load
+    Profile.query.filter_by(id=1).delete()
+    Job.query.filter(Job.is_saved == False).delete()
+    db.session.commit()
     return render_template("index.html")
 
 

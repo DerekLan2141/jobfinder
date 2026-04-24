@@ -53,7 +53,7 @@ with app.app_context():
 
 # ── Gemini ─────────────────────────────────────────────────────────────────────
 
-GEMINI_MODEL  = "gemini-2.5-flash"
+GEMINI_MODEL  = "gemini-1.5-flash"
 _gemini_client = None
 
 

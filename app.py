@@ -30,11 +30,15 @@ with app.app_context():
 # ── Gemini ─────────────────────────────────────────────────────────────────────
 
 GEMINI_MODEL = "gemini-2.5-flash"
+_gemini_client = None
 
 
 def gemini_client():
-    from google import genai
-    return genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    global _gemini_client
+    if _gemini_client is None:
+        from google import genai
+        _gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    return _gemini_client
 
 
 def gemini_generate(prompt: str) -> str:

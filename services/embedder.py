@@ -7,22 +7,25 @@ import os
 
 
 EMBED_MODEL = "text-embedding-004"
-_BATCH_SIZE = 100  # Gemini batch limit
+_BATCH_SIZE = 100
+
+_gemini_client = None
 
 
 def _client():
-    from google import genai
-    return genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    global _gemini_client
+    if _gemini_client is None:
+        from google import genai
+        _gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    return _gemini_client
 
 
 def embed_one(text: str) -> list[float]:
-    """Embed a single text string."""
     result = _client().models.embed_content(model=EMBED_MODEL, contents=text)
     return list(result.embeddings[0].values)
 
 
 def embed_batch(texts: list[str]) -> list[list[float]]:
-    """Embed a list of texts in batches, returning one vector per text."""
     if not texts:
         return []
     client = _client()

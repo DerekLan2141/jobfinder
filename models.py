@@ -55,4 +55,5 @@ class Profile(db.Model):
     summary        = db.Column(db.Text)
     education      = db.Column(db.String(300))
     experience_level = db.Column(db.String(50))
+    resume_text    = db.Column(db.Text)
     created_at     = db.Column(db.DateTime, default=datetime.utcnow)

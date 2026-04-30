@@ -8,3 +8,5 @@ lxml
 google-genai
 psycopg2-binary
 pypdf
+scikit-learn
+numpy

@@ -15,6 +15,7 @@
         <p class="subtitle">Resume-matched jobs from Adzuna</p>
       </div>
       <div class="header-actions">
+        <a class="btn-dashboard" href="/dashboard" target="_blank">📊 Dashboard</a>
         <label class="btn-resume" id="resumeLabel" for="resumeInput">📄 Upload Resume</label>
         <input type="file" id="resumeInput" accept=".pdf" style="display:none" />
         <button class="resume-clear hidden" id="resumeClear">&#10005; Clear Resume</button>
@@ -39,7 +40,10 @@
       <span id="profileTitles" class="profile-titles"></span>
       <span id="profileSkillCount" class="profile-skill-count"></span>
     </div>
-    <button class="btn-secondary" id="refreshBtn">&#8635; Refresh Jobs</button>
+    <div style="display:flex;gap:0.5rem;flex-shrink:0">
+      <button class="btn-outline" id="viewResumeBtn">📄 View Resume</button>
+      <button class="btn-secondary" id="refreshBtn">&#8635; Refresh Jobs</button>
+    </div>
   </div>
 
   <div id="status" class="status hidden"></div>
@@ -106,9 +110,24 @@
       </div>
       <div class="modal-section-title">Description</div>
       <div class="modal-desc" id="modalDesc"></div>
+      <div class="modal-section-title">Similar Jobs</div>
+      <div id="modalSimilar" class="modal-similar"></div>
       <div class="modal-footer">
         <a class="btn-primary" id="modalLink" href="" target="_blank" rel="noopener">View Listing ↗</a>
       </div>
+    </div>
+  </div>
+
+  <div id="resumeModal" class="modal-overlay hidden">
+    <div class="modal">
+      <button class="modal-close" id="resumeModalClose">&#10005;</button>
+      <div class="modal-head">
+        <h2>Your Resume</h2>
+        <span class="modal-company">Extracted text from your PDF</span>
+      </div>
+      <div class="modal-section-title">Resume Content</div>
+      <div id="resumeModalText" class="modal-desc" style="white-space:pre-wrap;font-size:0.8rem;max-height:60vh;overflow-y:auto"></div>
+      <div class="modal-footer"></div>
     </div>
   </div>
 

@@ -179,7 +179,7 @@ async function saveNotes(id, notes) {
 }
 
 // ── Modal ──────────────────────────────────────────────────────────────────
-function openModal(job) {
+async function openModal(job) {
   document.getElementById("modalTitle").textContent    = job.title;
   document.getElementById("modalCompany").textContent  = job.company;
   document.getElementById("modalLocation").textContent = job.location || "";
@@ -194,12 +194,31 @@ function openModal(job) {
     indEl.classList.add("hidden");
   }
 
-  // Show description directly — no AI call
-  const desc = job.description_snippet || "No description available.";
-  document.getElementById("modalDesc").textContent = desc;
+  document.getElementById("modalDesc").textContent = job.description_snippet || "No description available.";
+
+  // Load similar jobs
+  const simEl = document.getElementById("modalSimilar");
+  simEl.innerHTML = '<div class="similar-loading">Finding similar jobs...</div>';
 
   document.getElementById("modal").classList.remove("hidden");
   document.body.style.overflow = "hidden";
+
+  try {
+    const res  = await fetch(`/api/jobs/${job.id}/similar`);
+    const jobs = await res.json();
+    if (!jobs.length) {
+      simEl.innerHTML = '<p style="font-size:0.8rem;color:#6b7280;padding:0 1.5rem">No similar jobs found yet — try refreshing jobs.</p>';
+    } else {
+      simEl.innerHTML = jobs.map(j => `
+        <div class="similar-card" onclick="window.open('${j.url}','_blank')">
+          <div class="similar-title">${j.title}</div>
+          <div class="similar-meta">${j.company}${j.location ? " · " + j.location : ""}${j.salary ? " · " + j.salary : ""}</div>
+        </div>
+      `).join("");
+    }
+  } catch {
+    simEl.innerHTML = "";
+  }
 }
 
 function closeModal() {
@@ -253,7 +272,34 @@ document.getElementById("cvModalDone").addEventListener("click", closeCVModal);
 document.getElementById("cvModal").addEventListener("click", e => {
   if (e.target === document.getElementById("cvModal")) closeCVModal();
 });
-document.addEventListener("keydown", e => { if (e.key === "Escape") { closeModal(); closeCVModal(); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { closeModal(); closeCVModal(); closeResumeModal(); } });
+
+// ── Resume viewer modal ────────────────────────────────────────────────────
+async function openResumeModal() {
+  const modal = document.getElementById("resumeModal");
+  const el    = document.getElementById("resumeModalText");
+  el.textContent = "Loading...";
+  modal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  try {
+    const res  = await fetch("/api/resume/text");
+    const data = await res.json();
+    el.textContent = data.text || data.error || "No text available.";
+  } catch {
+    el.textContent = "Failed to load resume text.";
+  }
+}
+
+function closeResumeModal() {
+  document.getElementById("resumeModal").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+document.getElementById("resumeModalClose").addEventListener("click", closeResumeModal);
+document.getElementById("resumeModal").addEventListener("click", e => {
+  if (e.target === document.getElementById("resumeModal")) closeResumeModal();
+});
+document.getElementById("viewResumeBtn").addEventListener("click", openResumeModal);
 
 // ── Location multi-select ──────────────────────────────────────────────────
 const locBox         = document.getElementById("locBox");

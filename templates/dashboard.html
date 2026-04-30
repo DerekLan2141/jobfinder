@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobFinder — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #1a1a2e; --indigo: #4f46e5; --indigo-dark: #4338ca;
+      --indigo-light: #eef2ff; --gray-50: #f9fafb; --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb; --gray-500: #6b7280; --gray-700: #374151;
+      --gray-900: #111827; --green: #059669; --green-bg: #d1fae5;
+      --yellow: #d97706; --red: #dc2626;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           background: var(--gray-100); color: var(--gray-900); font-size: 14px; }
+
+    header { background: var(--navy); padding: 1rem 2rem;
+             display: flex; align-items: center; justify-content: space-between; }
+    header h1 { color: #fff; font-size: 1.3rem; font-weight: 800; }
+    .back-btn { color: #a5b4fc; font-size: 0.85rem; text-decoration: none;
+                border: 1px solid #4f46e5; padding: 0.35rem 0.9rem;
+                border-radius: 20px; transition: all .15s; }
+    .back-btn:hover { background: #4f46e5; color: #fff; }
+
+    .page { max-width: 1200px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+    h2 { font-size: 1.1rem; font-weight: 700; color: var(--navy); margin-bottom: 1rem; }
+
+    /* ── Stats cards ── */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                  gap: 1rem; margin-bottom: 1.75rem; }
+    .stat-card { background: #fff; border-radius: 10px; border: 1.5px solid var(--gray-200);
+                 padding: 1rem 1.2rem; }
+    .stat-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+                  letter-spacing: .06em; color: var(--gray-500); margin-bottom: 0.4rem; }
+    .stat-value { font-size: 2rem; font-weight: 800; color: var(--navy); line-height: 1; }
+    .stat-sub   { font-size: 0.75rem; color: var(--gray-500); margin-top: 0.3rem; }
+
+    /* ── Profile pill ── */
+    .profile-card { background: var(--indigo-light); border: 1.5px solid #c7d2fe;
+                    border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 1.75rem; }
+    .profile-card h2 { margin-bottom: 0.6rem; }
+    .profile-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .skill-tag { background: var(--indigo); color: #fff; font-size: 0.7rem; font-weight: 600;
+                 padding: 0.15rem 0.55rem; border-radius: 12px; }
+    .meta-row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.6rem;
+                font-size: 0.82rem; color: var(--gray-700); }
+    .meta-row span strong { color: var(--navy); }
+
+    /* ── Charts grid ── */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.75rem; }
+    .chart-card  { background: #fff; border-radius: 10px; border: 1.5px solid var(--gray-200);
+                   padding: 1.1rem 1.2rem; }
+    .chart-wrap  { position: relative; height: 240px; }
+
+    /* ── Clusters ── */
+    .cluster-section { margin-bottom: 1.75rem; }
+    .cluster-meta { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    .badge { display: inline-flex; align-items: center; gap: 0.3rem;
+             padding: 0.25rem 0.7rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
+    .badge-green  { background: var(--green-bg); color: var(--green); }
+    .badge-indigo { background: var(--indigo-light); color: var(--indigo); }
+    .badge-yellow { background: #fef3c7; color: var(--yellow); }
+
+    .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .cluster-card { background: #fff; border-radius: 10px; border: 1.5px solid var(--gray-200);
+                    padding: 1rem 1.1rem; border-top: 3px solid var(--indigo); }
+    .cluster-title { font-weight: 800; font-size: 0.9rem; color: var(--navy); margin-bottom: 0.4rem; }
+    .cluster-count { font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.6rem; }
+    .term-list { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.7rem; }
+    .term-tag  { background: var(--gray-100); color: var(--gray-700); font-size: 0.68rem;
+                 padding: 0.1rem 0.45rem; border-radius: 10px; border: 1px solid var(--gray-200); }
+    .sample-jobs { font-size: 0.75rem; color: var(--gray-500); line-height: 1.6; }
+    .sample-jobs li { list-style: none; padding-left: 0.8rem; position: relative; }
+    .sample-jobs li::before { content: "›"; position: absolute; left: 0; color: var(--indigo); }
+
+    /* ── Loading / error ── */
+    .loading { text-align: center; padding: 3rem; color: var(--gray-500); }
+    .error-msg { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;
+                 border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2.5px solid var(--gray-200);
+               border-top-color: var(--indigo); border-radius: 50%; animation: spin .7s linear infinite;
+               vertical-align: middle; margin-right: 0.5rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 700px) {
+      .charts-grid { grid-template-columns: 1fr; }
+      .page { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📊 JobFinder Dashboard</h1>
+  <a class="back-btn" href="/">← Back to Jobs</a>
+</header>
+
+<div class="page">
+
+  <div id="statsSection">
+    <div class="loading"><span class="spinner"></span> Loading metrics...</div>
+  </div>
+
+  <div id="chartsSection" style="display:none">
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h2>Industry Breakdown</h2>
+        <div class="chart-wrap"><canvas id="industryChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h2>Match Score Distribution</h2>
+        <div class="chart-wrap"><canvas id="scoreChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h2>Top Locations</h2>
+        <div class="chart-wrap"><canvas id="locationChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h2>Salary Coverage</h2>
+        <div class="chart-wrap"><canvas id="salaryChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cluster-section">
+    <h2>Job Type Clustering — K-Means Analysis</h2>
+    <div id="clusterSection">
+      <div class="loading"><span class="spinner"></span> Running K-Means clustering...</div>
+    </div>
+  </div>
+
+  <div class="cluster-section">
+    <h2>Market Analysis</h2>
+    <div id="marketSection">
+      <div class="loading"><span class="spinner"></span> Analysing market data...</div>
+    </div>
+    <div id="marketCharts" style="display:none">
+      <div class="charts-grid" style="margin-top:1rem">
+        <div class="chart-card">
+          <h2>Salary Distribution</h2>
+          <div class="chart-wrap"><canvas id="salaryDistChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Average Salary by Domain</h2>
+          <div class="chart-wrap"><canvas id="domainSalaryChart"></canvas></div>
+        </div>
+        <div class="chart-card" style="grid-column:1/-1">
+          <h2>Job Concentration by Location</h2>
+          <div class="chart-wrap" style="height:300px"><canvas id="locationDensityChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const COLORS = ["#4f46e5","#0891b2","#059669","#d97706","#dc2626","#7c3aed","#db2777","#0284c7"];
+
+async function loadStats() {
+  try {
+    const res  = await fetch("/api/dashboard/stats");
+    const data = await res.json();
+
+    if (data.error) {
+      document.getElementById("statsSection").innerHTML =
+        `<div class="error-msg">${data.error}</div>`;
+      return;
+    }
+
+    const p = data.profile;
+    document.getElementById("statsSection").innerHTML = `
+      ${p ? `
+      <div class="profile-card">
+        <h2>Resume Profile</h2>
+        <div class="meta-row">
+          <span><strong>Experience:</strong> ${p.experience || "—"}</span>
+          <span><strong>Education:</strong> ${p.education || "—"}</span>
+          <span><strong>Target Roles:</strong> ${(p.titles || []).join(", ") || "—"}</span>
+          <span><strong>Skills Detected:</strong> ${p.skills_count}</span>
+        </div>
+      </div>` : ""}
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Jobs</div>
+          <div class="stat-value">${data.total_jobs}</div>
+          <div class="stat-sub">in current session</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Match Score</div>
+          <div class="stat-value">${data.avg_match ?? "—"}%</div>
+          <div class="stat-sub">keyword overlap score</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Jobs Saved</div>
+          <div class="stat-value">${data.saved}</div>
+          <div class="stat-sub">hearted listings</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Salary Listed</div>
+          <div class="stat-value">${data.salary_pct}%</div>
+          <div class="stat-sub">${data.with_salary} of ${data.total_jobs} jobs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Locations</div>
+          <div class="stat-value">${Object.keys(data.top_locations).length}</div>
+          <div class="stat-sub">states covered</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Industries</div>
+          <div class="stat-value">${Object.keys(data.industry_breakdown).length}</div>
+          <div class="stat-sub">categories found</div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("chartsSection").style.display = "";
+    renderCharts(data);
+  } catch(e) {
+    document.getElementById("statsSection").innerHTML =
+      `<div class="error-msg">Failed to load stats: ${e.message}</div>`;
+  }
+}
+
+function renderCharts(data) {
+  const ind   = data.industry_breakdown;
+  const indK  = Object.keys(ind);
+  const indV  = indK.map(k => ind[k]);
+
+  new Chart(document.getElementById("industryChart"), {
+    type: "bar",
+    data: { labels: indK, datasets: [{ data: indV, backgroundColor: COLORS, borderRadius: 6 }] },
+    options: { indexAxis: "y", plugins: { legend: { display: false } },
+               scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
+  });
+
+  const sd = data.score_distribution;
+  new Chart(document.getElementById("scoreChart"), {
+    type: "bar",
+    data: { labels: sd.labels, datasets: [{ data: sd.counts, backgroundColor: "#4f46e5",
+            borderRadius: 6, label: "Jobs" }] },
+    options: { plugins: { legend: { display: false } },
+               scales: { y: { beginAtZero: true, grid: { display: false } },
+                         x: { grid: { display: false } } } }
+  });
+
+  const loc  = data.top_locations;
+  const locK = Object.keys(loc);
+  const locV = locK.map(k => loc[k]);
+  new Chart(document.getElementById("locationChart"), {
+    type: "bar",
+    data: { labels: locK, datasets: [{ data: locV, backgroundColor: "#0891b2", borderRadius: 6 }] },
+    options: { indexAxis: "y", plugins: { legend: { display: false } },
+               scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
+  });
+
+  new Chart(document.getElementById("salaryChart"), {
+    type: "doughnut",
+    data: { labels: ["Has Salary", "No Salary"],
+            datasets: [{ data: [data.with_salary, data.total_jobs - data.with_salary],
+                         backgroundColor: ["#059669","#e5e7eb"], borderWidth: 0 }] },
+    options: { plugins: { legend: { position: "bottom" } }, cutout: "65%" }
+  });
+}
+
+async function loadClusters() {
+  try {
+    const res  = await fetch("/api/dashboard/clusters");
+    const data = await res.json();
+    const el   = document.getElementById("clusterSection");
+
+    if (data.error) {
+      el.innerHTML = `<div class="error-msg">${data.error}</div>`; return;
+    }
+
+    const silColor = data.silhouette_score > 0.3 ? "badge-green" :
+                     data.silhouette_score > 0.1 ? "badge-yellow" : "badge-indigo";
+
+    el.innerHTML = `
+      <div class="cluster-meta">
+        <span class="badge badge-indigo">K = ${data.n_clusters} clusters</span>
+        <span class="badge badge-indigo">${data.total_jobs} jobs analysed</span>
+        ${data.silhouette_score != null
+          ? `<span class="badge ${silColor}">Silhouette Score: ${data.silhouette_score}
+             ${data.silhouette_score > 0.3 ? "✓ Good" : data.silhouette_score > 0.1 ? "~ Fair" : "Low"}</span>`
+          : ""}
+        <span class="badge badge-indigo">Inertia: ${data.inertia}</span>
+      </div>
+      <div class="cluster-grid">
+        ${data.clusters.map((c, i) => `
+          <div class="cluster-card" style="border-top-color:${COLORS[i % COLORS.length]}">
+            <div class="cluster-title">${c.label}</div>
+            <div class="cluster-count">${c.count} jobs in this cluster</div>
+            <div class="term-list">
+              ${c.top_terms.map(t => `<span class="term-tag">${t}</span>`).join("")}
+            </div>
+            <ul class="sample-jobs">
+              ${c.sample_jobs.map(j => `<li>${j}</li>`).join("")}
+            </ul>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById("clusterSection").innerHTML =
+      `<div class="error-msg">Clustering failed: ${e.message}</div>`;
+  }
+}
+
+async function loadMarket() {
+  try {
+    const res  = await fetch("/api/dashboard/market");
+    const data = await res.json();
+    const el   = document.getElementById("marketSection");
+
+    if (data.error) { el.innerHTML = `<div class="error-msg">${data.error}</div>`; return; }
+
+    el.innerHTML = "";
+    document.getElementById("marketCharts").style.display = "";
+
+    const sb = data.salary_buckets;
+    new Chart(document.getElementById("salaryDistChart"), {
+      type: "bar",
+      data: { labels: Object.keys(sb), datasets: [{ data: Object.values(sb),
+              backgroundColor: COLORS, borderRadius: 6 }] },
+      options: { plugins: { legend: { display: false } },
+                 scales: { y: { beginAtZero: true, grid: { display: false } },
+                           x: { grid: { display: false } } } }
+    });
+
+    const ds = data.domain_avg_salary;
+    const dsK = Object.keys(ds).sort((a,b) => ds[b]-ds[a]);
+    new Chart(document.getElementById("domainSalaryChart"), {
+      type: "bar",
+      data: { labels: dsK, datasets: [{ data: dsK.map(k => Math.round(ds[k]/1000)),
+              backgroundColor: "#059669", borderRadius: 6, label: "Avg $k" }] },
+      options: { indexAxis: "y", plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: ctx => `$${ctx.raw}k avg` } } },
+                 scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
+    });
+
+    const ld = data.location_density;
+    const ldK = Object.keys(ld);
+    new Chart(document.getElementById("locationDensityChart"), {
+      type: "bar",
+      data: { labels: ldK, datasets: [{ data: ldK.map(k => ld[k]),
+              backgroundColor: "#7c3aed", borderRadius: 6 }] },
+      options: { plugins: { legend: { display: false } },
+                 scales: { y: { beginAtZero: true, grid: { display: false } },
+                           x: { grid: { display: false } } } }
+    });
+  } catch(e) {
+    document.getElementById("marketSection").innerHTML =
+      `<div class="error-msg">Market analysis failed: ${e.message}</div>`;
+  }
+}
+
+loadStats();
+loadClusters();
+loadMarket();
+</script>
+</body>
+</html>

@@ -28,6 +28,7 @@ with app.app_context():
             ("experience_level", "VARCHAR(50)"),
             ("summary",          "TEXT"),
             ("education",        "VARCHAR(300)"),
+            ("resume_text",      "TEXT"),
         ]:
             try:
                 _conn.execute(db.text(
@@ -197,6 +198,7 @@ Return exactly this JSON:
         profile.summary          = data.get("summary", "")
         profile.education        = data.get("education", "")
         profile.experience_level = data.get("experience_level", "")
+        profile.resume_text      = text[:6000]
         db.session.commit()
 
         # Fetch and cache jobs from Adzuna using the profile's queries
@@ -371,25 +373,32 @@ def cv_guide(job_id):
         skills = _load_json(profile.skills)
         titles = _load_json(profile.job_titles)
 
-        prompt = f"""You are a career coach. Given this job listing and candidate profile, give specific actionable suggestions to tailor their resume for this exact role. Be direct and practical.
+        resume_excerpt = (profile.resume_text or "")[:3000]
 
-Job Title: {job.title}
+        prompt = f"""You are a career coach doing a detailed resume review for a specific job application.
+Read the actual resume text carefully and give highly specific, personalized suggestions.
+Reference real content from the resume — specific projects, skills, experiences, or gaps you notice.
+
+ACTUAL RESUME:
+{resume_excerpt}
+
+TARGET JOB:
+Title: {job.title}
 Company: {job.company}
 Location: {job.location or "Not specified"}
 Description: {job.description_snippet or "Not provided"}
 
-Candidate Profile:
-- Skills: {', '.join(skills[:25])}
-- Target Roles: {', '.join(titles)}
-- Education: {profile.education or "Not specified"}
-- Summary: {profile.summary or "Not provided"}
+Give 5-6 specific suggestions. Each must:
+- Reference something ACTUALLY in the resume (a real skill, project, or experience)
+- Explain exactly what to change, add, or reframe for THIS job
+- Be actionable, not generic
 
-Return ONLY valid JSON with 4-6 suggestions:
+Return ONLY valid JSON:
 {{
   "suggestions": [
     {{
-      "tip": "short actionable title (e.g. Highlight Python projects)",
-      "detail": "specific thing to add, reframe, or emphasize on the resume to stand out for this role"
+      "tip": "short actionable title referencing specific resume content",
+      "detail": "exactly what to change and why it helps for this specific role"
     }}
   ]
 }}"""
@@ -427,6 +436,203 @@ def update_notes(job_id):
     job.notes = request.json.get("notes", "")
     db.session.commit()
     return jsonify({"success": True})
+
+
+@app.route("/api/jobs/<int:job_id>/similar")
+def similar_jobs(job_id):
+    job = Job.query.get_or_404(job_id)
+    terms = set(
+        w for w in f"{job.title} {job.industry or ''}".lower().split()
+        if len(w) > 3
+    )
+    candidates = Job.query.filter(
+        Job.id != job_id, Job.is_dismissed == False
+    ).all()
+    scored = []
+    for c in candidates:
+        c_text = f"{c.title} {c.description_snippet or ''} {c.industry or ''}".lower()
+        hits = sum(1 for t in terms if t in c_text)
+        if hits > 0:
+            scored.append((c, hits))
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return jsonify([c.to_dict() for c, _ in scored[:6]])
+
+
+@app.route("/api/resume/text")
+def resume_text():
+    profile = _active_profile()
+    if not profile or not profile.resume_text:
+        return jsonify({"error": "No resume loaded"}), 404
+    return jsonify({"text": profile.resume_text})
+
+
+# ── Dashboard ──────────────────────────────────────────────────────────────────
+
+@app.route("/dashboard")
+def dashboard():
+    return render_template("dashboard.html")
+
+
+@app.route("/api/dashboard/market")
+def dashboard_market():
+    jobs = Job.query.filter_by(is_dismissed=False).all()
+    if not jobs:
+        return jsonify({"error": "No jobs loaded yet."}), 404
+
+    # Salary buckets
+    salary_buckets = {"<$50k": 0, "$50–75k": 0, "$75–100k": 0,
+                      "$100–130k": 0, "$130k+": 0, "Not listed": 0}
+    domain_salary = {}   # industry → list of midpoints
+
+    import re as _re
+    num_re = _re.compile(r'\$([\d,]+)')
+
+    for job in jobs:
+        ind = job.industry or "Other"
+        if job.salary:
+            nums = [int(n.replace(",", "")) for n in num_re.findall(job.salary)]
+            if nums:
+                mid = sum(nums) / len(nums)
+                if mid < 50000:     salary_buckets["<$50k"] += 1
+                elif mid < 75000:   salary_buckets["$50–75k"] += 1
+                elif mid < 100000:  salary_buckets["$75–100k"] += 1
+                elif mid < 130000:  salary_buckets["$100–130k"] += 1
+                else:               salary_buckets["$130k+"] += 1
+                domain_salary.setdefault(ind, []).append(mid)
+        else:
+            salary_buckets["Not listed"] += 1
+
+    domain_avg_salary = {
+        ind: round(sum(vals) / len(vals))
+        for ind, vals in domain_salary.items() if vals
+    }
+
+    # Location job density
+    loc_counts = {}
+    for job in jobs:
+        if job.location:
+            loc_counts[job.location] = loc_counts.get(job.location, 0) + 1
+    top_locs = sorted(loc_counts.items(), key=lambda x: x[1], reverse=True)[:15]
+
+    # Industry × location heatmap data
+    ind_loc = {}
+    for job in jobs:
+        if job.industry and job.location:
+            ind_loc.setdefault(job.industry, {})
+            ind_loc[job.industry][job.location] = ind_loc[job.industry].get(job.location, 0) + 1
+
+    return jsonify({
+        "salary_buckets":    salary_buckets,
+        "domain_avg_salary": domain_avg_salary,
+        "location_density":  dict(top_locs),
+        "industry_location": ind_loc,
+    })
+
+
+@app.route("/api/dashboard/stats")
+def dashboard_stats():
+    jobs    = Job.query.filter_by(is_dismissed=False).all()
+    profile = _active_profile()
+    if not jobs:
+        return jsonify({"error": "No jobs loaded yet — upload a resume first."}), 404
+
+    industry_counts  = {}
+    location_counts  = {}
+    score_buckets    = [0] * 5   # 80-83, 84-87, 88-91, 92-95, 96-99
+
+    skills = _load_json(profile.skills)  if profile else []
+    titles = _load_json(profile.job_titles) if profile else []
+
+    scores = []
+    for job in jobs:
+        ind = job.industry or "Other"
+        industry_counts[ind] = industry_counts.get(ind, 0) + 1
+        if job.location:
+            location_counts[job.location] = location_counts.get(job.location, 0) + 1
+        if profile:
+            s = calc_match_score(job, skills, titles)
+            scores.append(s)
+            bucket = min(4, (s - 80) // 4)
+            score_buckets[bucket] += 1
+
+    top_locations = sorted(location_counts.items(), key=lambda x: x[1], reverse=True)[:12]
+    with_salary   = sum(1 for j in jobs if j.salary)
+    saved         = sum(1 for j in jobs if j.is_saved)
+
+    return jsonify({
+        "total_jobs":          len(jobs),
+        "saved":               saved,
+        "with_salary":         with_salary,
+        "salary_pct":          round(with_salary / len(jobs) * 100),
+        "avg_match":           round(sum(scores) / len(scores)) if scores else None,
+        "industry_breakdown":  industry_counts,
+        "top_locations":       dict(top_locations),
+        "score_distribution":  {
+            "labels": ["80-83", "84-87", "88-91", "92-95", "96-99"],
+            "counts": score_buckets,
+        },
+        "profile": {
+            "skills_count":   len(skills),
+            "titles":         titles,
+            "education":      profile.education if profile else None,
+            "experience":     profile.experience_level if profile else None,
+        } if profile else None,
+    })
+
+
+@app.route("/api/dashboard/clusters")
+def dashboard_clusters():
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import silhouette_score
+
+    jobs = Job.query.filter_by(is_dismissed=False).all()
+    if len(jobs) < 8:
+        return jsonify({"error": "Need at least 8 jobs to cluster. Refresh jobs first."}), 400
+
+    texts = [f"{j.title} {j.description_snippet or ''}" for j in jobs]
+
+    vectorizer = TfidfVectorizer(max_features=300, stop_words="english", ngram_range=(1, 2))
+    X = vectorizer.fit_transform(texts)
+
+    n_clusters = min(8, max(4, len(jobs) // 25))
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    labels = kmeans.fit_predict(X)
+
+    try:
+        sil = round(float(silhouette_score(X, labels)), 3)
+    except Exception:
+        sil = None
+
+    feature_names = vectorizer.get_feature_names_out()
+    clusters = []
+    for i in range(n_clusters):
+        top_idx    = kmeans.cluster_centers_[i].argsort()[-8:][::-1]
+        top_terms  = [feature_names[idx] for idx in top_idx]
+        members    = [jobs[j] for j in range(len(jobs)) if labels[j] == i]
+        industries = {}
+        for m in members:
+            ind = m.industry or "Other"
+            industries[ind] = industries.get(ind, 0) + 1
+        sample = list({m.title for m in members})[:6]
+        clusters.append({
+            "id":         i,
+            "label":      " · ".join(top_terms[:3]).title(),
+            "top_terms":  top_terms,
+            "count":      len(members),
+            "industries": industries,
+            "sample_jobs": sample,
+        })
+
+    clusters.sort(key=lambda x: x["count"], reverse=True)
+
+    return jsonify({
+        "clusters":         clusters,
+        "n_clusters":       n_clusters,
+        "total_jobs":       len(jobs),
+        "silhouette_score": sil,
+        "inertia":          round(float(kmeans.inertia_), 1),
+    })
 
 
 if __name__ == "__main__":

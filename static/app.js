@@ -278,15 +278,31 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") { closeModal
 async function openResumeModal() {
   const modal = document.getElementById("resumeModal");
   const el    = document.getElementById("resumeModalText");
-  el.textContent = "Loading...";
+  el.innerHTML = "<em style='color:#6b7280'>Loading...</em>";
   modal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
   try {
     const res  = await fetch("/api/resume/text");
     const data = await res.json();
-    el.textContent = data.text || data.error || "No text available.";
+    if (data.error) { el.innerHTML = `<em style='color:#dc2626'>${data.error}</em>`; return; }
+    // Format the raw text into readable sections
+    const lines = (data.text || "").split("\n").filter(l => l.trim());
+    let html = "";
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t) continue;
+      // Detect section headers: short all-caps or ends with colon
+      if ((t === t.toUpperCase() && t.length < 60 && t.length > 2) || /^[A-Z][A-Z\s&]{3,}:?\s*$/.test(t)) {
+        html += `<div class="resume-section-header">${t}</div>`;
+      } else if (t.startsWith("•") || t.startsWith("-") || t.startsWith("·")) {
+        html += `<div class="resume-bullet">${t}</div>`;
+      } else {
+        html += `<div class="resume-line">${t}</div>`;
+      }
+    }
+    el.innerHTML = html || "<em>No content extracted.</em>";
   } catch {
-    el.textContent = "Failed to load resume text.";
+    el.innerHTML = "<em style='color:#dc2626'>Failed to load resume.</em>";
   }
 }
 

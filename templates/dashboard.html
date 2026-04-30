@@ -8,149 +8,281 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --navy: #1a1a2e; --indigo: #4f46e5; --indigo-dark: #4338ca;
-      --indigo-light: #eef2ff; --gray-50: #f9fafb; --gray-100: #f3f4f6;
-      --gray-200: #e5e7eb; --gray-500: #6b7280; --gray-700: #374151;
-      --gray-900: #111827; --green: #059669; --green-bg: #d1fae5;
-      --yellow: #d97706; --red: #dc2626;
+      --navy:#1a1a2e; --indigo:#4f46e5; --indigo-dark:#4338ca; --indigo-light:#eef2ff;
+      --gray-50:#f9fafb; --gray-100:#f3f4f6; --gray-200:#e5e7eb; --gray-300:#d1d5db;
+      --gray-500:#6b7280; --gray-700:#374151; --gray-900:#111827;
+      --green:#059669; --green-bg:#d1fae5; --yellow:#d97706; --red:#dc2626;
     }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-           background: var(--gray-100); color: var(--gray-900); font-size: 14px; }
+    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+           background:var(--gray-100); color:var(--gray-900); font-size:14px; }
 
-    header { background: var(--navy); padding: 1rem 2rem;
-             display: flex; align-items: center; justify-content: space-between; }
-    header h1 { color: #fff; font-size: 1.3rem; font-weight: 800; }
-    .back-btn { color: #a5b4fc; font-size: 0.85rem; text-decoration: none;
-                border: 1px solid #4f46e5; padding: 0.35rem 0.9rem;
-                border-radius: 20px; transition: all .15s; }
-    .back-btn:hover { background: #4f46e5; color: #fff; }
+    /* ── Header ── */
+    header { background:var(--navy); padding:1rem 2rem;
+             display:flex; align-items:center; justify-content:space-between; }
+    header h1 { color:#fff; font-size:1.3rem; font-weight:800; }
+    .back-btn { color:#a5b4fc; font-size:0.85rem; text-decoration:none;
+                border:1px solid #4f46e5; padding:0.35rem 0.9rem;
+                border-radius:20px; transition:all .15s; }
+    .back-btn:hover { background:#4f46e5; color:#fff; }
 
-    .page { max-width: 1200px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
-    h2 { font-size: 1.1rem; font-weight: 700; color: var(--navy); margin-bottom: 1rem; }
+    /* ── Tabs ── */
+    .tab-bar { background:#fff; border-bottom:1px solid var(--gray-200);
+               display:flex; gap:0; padding:0 2rem; overflow-x:auto; }
+    .tab { padding:0.8rem 1.2rem; font-size:0.83rem; font-weight:600; color:var(--gray-500);
+           border-bottom:2.5px solid transparent; cursor:pointer; white-space:nowrap;
+           transition:all .15s; border:none; background:none; font-family:inherit; }
+    .tab:hover { color:var(--indigo); }
+    .tab.active { color:var(--indigo); border-bottom-color:var(--indigo); }
 
-    /* ── Stats cards ── */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-                  gap: 1rem; margin-bottom: 1.75rem; }
-    .stat-card { background: #fff; border-radius: 10px; border: 1.5px solid var(--gray-200);
-                 padding: 1rem 1.2rem; }
-    .stat-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-                  letter-spacing: .06em; color: var(--gray-500); margin-bottom: 0.4rem; }
-    .stat-value { font-size: 2rem; font-weight: 800; color: var(--navy); line-height: 1; }
-    .stat-sub   { font-size: 0.75rem; color: var(--gray-500); margin-top: 0.3rem; }
+    /* ── Page layout ── */
+    .page { max-width:1200px; margin:0 auto; padding:1.5rem 2rem 3rem; }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+    h2 { font-size:1rem; font-weight:700; color:var(--navy); margin-bottom:0.9rem; }
+    h3 { font-size:0.85rem; font-weight:700; color:var(--gray-700); margin-bottom:0.5rem; }
 
-    /* ── Profile pill ── */
-    .profile-card { background: var(--indigo-light); border: 1.5px solid #c7d2fe;
-                    border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 1.75rem; }
-    .profile-card h2 { margin-bottom: 0.6rem; }
-    .profile-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-    .skill-tag { background: var(--indigo); color: #fff; font-size: 0.7rem; font-weight: 600;
-                 padding: 0.15rem 0.55rem; border-radius: 12px; }
-    .meta-row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.6rem;
-                font-size: 0.82rem; color: var(--gray-700); }
-    .meta-row span strong { color: var(--navy); }
+    /* ── Cards ── */
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+                  gap:1rem; margin-bottom:1.5rem; }
+    .stat-card { background:#fff; border-radius:10px; border:1.5px solid var(--gray-200);
+                 padding:1rem 1.2rem; }
+    .stat-label { font-size:0.68rem; font-weight:700; text-transform:uppercase;
+                  letter-spacing:.06em; color:var(--gray-500); margin-bottom:0.4rem; }
+    .stat-value { font-size:1.9rem; font-weight:800; color:var(--navy); line-height:1; }
+    .stat-sub   { font-size:0.72rem; color:var(--gray-500); margin-top:0.25rem; }
 
-    /* ── Charts grid ── */
-    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.75rem; }
-    .chart-card  { background: #fff; border-radius: 10px; border: 1.5px solid var(--gray-200);
-                   padding: 1.1rem 1.2rem; }
-    .chart-wrap  { position: relative; height: 240px; }
+    /* ── Charts ── */
+    .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem; }
+    .chart-card  { background:#fff; border-radius:10px; border:1.5px solid var(--gray-200);
+                   padding:1.1rem 1.2rem; }
+    .chart-wrap  { position:relative; height:240px; }
+    .chart-wide  { grid-column:1/-1; }
 
-    /* ── Clusters ── */
-    .cluster-section { margin-bottom: 1.75rem; }
-    .cluster-meta { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
-    .badge { display: inline-flex; align-items: center; gap: 0.3rem;
-             padding: 0.25rem 0.7rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
-    .badge-green  { background: var(--green-bg); color: var(--green); }
-    .badge-indigo { background: var(--indigo-light); color: var(--indigo); }
-    .badge-yellow { background: #fef3c7; color: var(--yellow); }
+    /* ── Badges ── */
+    .badge { display:inline-flex; align-items:center; gap:0.3rem;
+             padding:0.22rem 0.7rem; border-radius:20px; font-size:0.75rem; font-weight:600; }
+    .badge-green  { background:var(--green-bg); color:var(--green); }
+    .badge-indigo { background:var(--indigo-light); color:var(--indigo); }
+    .badge-yellow { background:#fef3c7; color:var(--yellow); }
+    .badge-red    { background:#fee2e2; color:var(--red); }
+    .badge-row    { display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem; }
 
-    .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-    .cluster-card { background: #fff; border-radius: 10px; border: 1.5px solid var(--gray-200);
-                    padding: 1rem 1.1rem; border-top: 3px solid var(--indigo); }
-    .cluster-title { font-weight: 800; font-size: 0.9rem; color: var(--navy); margin-bottom: 0.4rem; }
-    .cluster-count { font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.6rem; }
-    .term-list { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.7rem; }
-    .term-tag  { background: var(--gray-100); color: var(--gray-700); font-size: 0.68rem;
-                 padding: 0.1rem 0.45rem; border-radius: 10px; border: 1px solid var(--gray-200); }
-    .sample-jobs { font-size: 0.75rem; color: var(--gray-500); line-height: 1.6; }
-    .sample-jobs li { list-style: none; padding-left: 0.8rem; position: relative; }
-    .sample-jobs li::before { content: "›"; position: absolute; left: 0; color: var(--indigo); }
+    /* ── Cluster cards ── */
+    .cluster-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:1rem; }
+    .cluster-card { background:#fff; border-radius:10px; border:1.5px solid var(--gray-200);
+                    padding:1rem 1.1rem; border-top:3px solid var(--indigo); }
+    .cluster-title { font-weight:800; font-size:0.9rem; color:var(--navy); margin-bottom:0.25rem; }
+    .cluster-count { font-size:0.72rem; color:var(--gray-500); margin-bottom:0.6rem; }
+    .term-list { display:flex; flex-wrap:wrap; gap:0.25rem; margin-bottom:0.65rem; }
+    .term-tag  { background:var(--gray-100); color:var(--gray-700); font-size:0.67rem;
+                 padding:0.1rem 0.4rem; border-radius:10px; border:1px solid var(--gray-200); }
+    .sample-jobs { font-size:0.74rem; color:var(--gray-500); line-height:1.65; }
+    .sample-jobs li { list-style:none; padding-left:0.8rem; position:relative; }
+    .sample-jobs li::before { content:"›"; position:absolute; left:0; color:var(--indigo); }
+
+    /* ── Table ── */
+    .data-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+    .data-table th { background:var(--gray-50); color:var(--gray-700); font-weight:700;
+                     padding:0.5rem 0.75rem; text-align:left; border-bottom:1px solid var(--gray-200); }
+    .data-table td { padding:0.5rem 0.75rem; border-bottom:1px solid var(--gray-100); }
+    .data-table tr:hover td { background:var(--gray-50); }
+    .table-wrap { background:#fff; border-radius:10px; border:1.5px solid var(--gray-200);
+                  overflow:hidden; margin-bottom:1.5rem; }
+
+    /* ── Eval section ── */
+    .eval-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem; }
+    .eval-card { background:#fff; border-radius:10px; border:1.5px solid var(--gray-200); padding:1.1rem 1.2rem; }
+    .eval-title { font-weight:700; font-size:0.85rem; color:var(--navy); margin-bottom:0.6rem; display:flex; justify-content:space-between; align-items:center; }
+    .eval-desc { font-size:0.78rem; color:var(--gray-500); line-height:1.6; margin-bottom:0.8rem; }
+    .metric-row { display:flex; justify-content:space-between; align-items:center;
+                  padding:0.35rem 0; border-bottom:1px solid var(--gray-100); font-size:0.8rem; }
+    .metric-row:last-child { border:none; }
+    .metric-name  { color:var(--gray-700); }
+    .metric-value { font-weight:700; color:var(--navy); }
+    .progress-bar { height:6px; background:var(--gray-100); border-radius:3px; margin-top:0.5rem; overflow:hidden; }
+    .progress-fill { height:100%; background:var(--indigo); border-radius:3px; transition:width .5s; }
+
+    /* ── Info box ── */
+    .info-box { background:var(--indigo-light); border:1.5px solid #c7d2fe; border-radius:10px;
+                padding:1rem 1.2rem; margin-bottom:1.5rem; font-size:0.82rem; line-height:1.65; color:var(--gray-700); }
+    .info-box strong { color:var(--navy); }
 
     /* ── Loading / error ── */
-    .loading { text-align: center; padding: 3rem; color: var(--gray-500); }
-    .error-msg { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;
-                 border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; }
-    .spinner { display: inline-block; width: 20px; height: 20px; border: 2.5px solid var(--gray-200);
-               border-top-color: var(--indigo); border-radius: 50%; animation: spin .7s linear infinite;
-               vertical-align: middle; margin-right: 0.5rem; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading { text-align:center; padding:3rem; color:var(--gray-500); font-size:0.85rem; }
+    .error-msg { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5;
+                 border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem; font-size:0.82rem; }
+    .spinner { display:inline-block; width:18px; height:18px; border:2.5px solid var(--gray-200);
+               border-top-color:var(--indigo); border-radius:50%; animation:spin .7s linear infinite;
+               vertical-align:middle; margin-right:0.5rem; }
+    @keyframes spin { to { transform:rotate(360deg); } }
 
-    @media (max-width: 700px) {
-      .charts-grid { grid-template-columns: 1fr; }
-      .page { padding: 1rem; }
+    @media (max-width:720px) {
+      .charts-grid,.eval-grid { grid-template-columns:1fr; }
+      .page { padding:1rem; }
+      .tab-bar { padding:0 1rem; }
     }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>📊 JobFinder Dashboard</h1>
+  <h1>📊 JobFinder — Analytics Dashboard</h1>
   <a class="back-btn" href="/">← Back to Jobs</a>
 </header>
 
+<div class="tab-bar">
+  <button class="tab active" onclick="showTab('eda',this)">📊 EDA</button>
+  <button class="tab" onclick="showTab('clustering',this)">🔵 Clustering</button>
+  <button class="tab" onclick="showTab('salary',this)">💰 Salary Analysis</button>
+  <button class="tab" onclick="showTab('classification',this)">🏷️ Classification</button>
+  <button class="tab" onclick="showTab('evaluation',this)">📈 Model Evaluation</button>
+</div>
+
 <div class="page">
 
-  <div id="statsSection">
-    <div class="loading"><span class="spinner"></span> Loading metrics...</div>
-  </div>
-
-  <div id="chartsSection" style="display:none">
-    <div class="charts-grid">
-      <div class="chart-card">
-        <h2>Industry Breakdown</h2>
-        <div class="chart-wrap"><canvas id="industryChart"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h2>Match Score Distribution</h2>
-        <div class="chart-wrap"><canvas id="scoreChart"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h2>Top Locations</h2>
-        <div class="chart-wrap"><canvas id="locationChart"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h2>Salary Coverage</h2>
-        <div class="chart-wrap"><canvas id="salaryChart"></canvas></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="cluster-section">
-    <h2>Job Type Clustering — K-Means Analysis</h2>
-    <div id="clusterSection">
-      <div class="loading"><span class="spinner"></span> Running K-Means clustering...</div>
-    </div>
-  </div>
-
-  <div class="cluster-section">
-    <h2>Market Analysis</h2>
-    <div id="marketSection">
-      <div class="loading"><span class="spinner"></span> Analysing market data...</div>
-    </div>
-    <div id="marketCharts" style="display:none">
-      <div class="charts-grid" style="margin-top:1rem">
+  <!-- ── EDA ── -->
+  <div id="tab-eda" class="tab-panel active">
+    <div id="edaStats"><div class="loading"><span class="spinner"></span>Loading data...</div></div>
+    <div id="edaCharts" style="display:none">
+      <div class="charts-grid">
         <div class="chart-card">
           <h2>Salary Distribution</h2>
           <div class="chart-wrap"><canvas id="salaryDistChart"></canvas></div>
         </div>
         <div class="chart-card">
-          <h2>Average Salary by Domain</h2>
-          <div class="chart-wrap"><canvas id="domainSalaryChart"></canvas></div>
+          <h2>Industry Breakdown</h2>
+          <div class="chart-wrap"><canvas id="industryChart"></canvas></div>
         </div>
-        <div class="chart-card" style="grid-column:1/-1">
+        <div class="chart-card">
           <h2>Job Concentration by Location</h2>
-          <div class="chart-wrap" style="height:300px"><canvas id="locationDensityChart"></canvas></div>
+          <div class="chart-wrap"><canvas id="locationChart"></canvas></div>
         </div>
+        <div class="chart-card">
+          <h2>Average Salary by Industry</h2>
+          <div class="chart-wrap"><canvas id="indSalaryChart"></canvas></div>
+        </div>
+        <div class="chart-card chart-wide">
+          <h2>Match Score Distribution</h2>
+          <div class="chart-wrap" style="height:200px"><canvas id="scoreChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Clustering ── -->
+  <div id="tab-clustering" class="tab-panel">
+    <div class="info-box">
+      <strong>How K-Means Clustering Works Here:</strong> Every job title and description is
+      converted into a TF-IDF vector — a numerical representation where each dimension is a word
+      and its value reflects how important that word is relative to all jobs. K-Means then groups
+      jobs by minimising the distance between each job and its cluster centroid. The result reveals
+      natural groupings in the job market without any predefined labels.
+    </div>
+    <div id="clusterSection"><div class="loading"><span class="spinner"></span>Running K-Means...</div></div>
+  </div>
+
+  <!-- ── Salary Analysis ── -->
+  <div id="tab-salary" class="tab-panel">
+    <div class="info-box">
+      <strong>Salary Prediction Model:</strong> We train a Random Forest classifier on jobs that
+      have salary data. Features are one-hot encoded industry and location. The model predicts
+      which salary bucket ($50k, $75k, $100k, $130k+) a job falls into. Cross-validation
+      estimates real-world accuracy. Jobs without listed salary get a predicted range.
+    </div>
+    <div id="salarySection"><div class="loading"><span class="spinner"></span>Training model...</div></div>
+    <div id="salaryCharts" style="display:none">
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h2>Salary Range Distribution</h2>
+          <div class="chart-wrap"><canvas id="salRangeChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Average Salary by Domain</h2>
+          <div class="chart-wrap"><canvas id="salDomainChart"></canvas></div>
+        </div>
+      </div>
+      <h2>Predicted Salaries for Unlisted Jobs</h2>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Job Title</th><th>Company</th><th>Industry</th><th>Predicted Range</th></tr></thead>
+          <tbody id="predTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Classification ── -->
+  <div id="tab-classification" class="tab-panel">
+    <div class="info-box">
+      <strong>Industry Classification:</strong> Each job is classified into one of 8 industry
+      categories using keyword matching on the title and description snippet. This is a
+      rule-based classifier — fast, interpretable, and explainable. The rules are ordered
+      by specificity (cybersecurity is matched before software engineering to avoid overlap).
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h2>Industry Category Distribution</h2>
+        <div class="chart-wrap"><canvas id="classDistChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h2>Classification Rules</h2>
+        <div style="font-size:0.78rem;line-height:1.9;color:var(--gray-700);overflow-y:auto;max-height:240px">
+          <div><strong style="color:var(--navy)">Cybersecurity</strong> — cybersecurity · security engineer · security analyst · infosec</div>
+          <div><strong style="color:var(--navy)">Data & Analytics</strong> — data scientist · data analyst · machine learning · ml engineer · ai engineer</div>
+          <div><strong style="color:var(--navy)">Product Management</strong> — product manager · product owner</div>
+          <div><strong style="color:var(--navy)">Software Engineering</strong> — software engineer · backend · frontend · full stack · devops · mobile</div>
+          <div><strong style="color:var(--navy)">Design</strong> — designer · ux · user experience · graphic design</div>
+          <div><strong style="color:var(--navy)">Finance</strong> — financial analyst · finance · accounting · investment · banking</div>
+          <div><strong style="color:var(--navy)">Marketing</strong> — marketing · seo · social media · brand · copywriter</div>
+          <div><strong style="color:var(--navy)">Sales</strong> — sales · business development · account executive · customer success</div>
+          <div><strong style="color:var(--navy)">Other</strong> — fallback for no keyword match</div>
+        </div>
+      </div>
+    </div>
+    <h2>Jobs by Category</h2>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Category</th><th>Job Count</th><th>% of Total</th><th>Avg Match Score</th></tr></thead>
+        <tbody id="classTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Model Evaluation ── -->
+  <div id="tab-evaluation" class="tab-panel">
+    <div class="info-box">
+      <strong>Evaluation Framework:</strong> We evaluate four components of the system —
+      the K-Means clustering model, the industry classifier, the salary prediction model,
+      and the keyword matching ranker. Each uses appropriate metrics for its task type.
+    </div>
+    <div class="eval-grid" id="evalGrid">
+      <div class="loading" style="grid-column:1/-1"><span class="spinner"></span>Running evaluations...</div>
+    </div>
+    <div id="evalExplainer" style="display:none">
+      <h2 style="margin-bottom:1rem">How the Matching Model Works</h2>
+      <div class="info-box">
+        <p style="margin-bottom:0.6rem">
+          <strong>Step 1 — Resume Parsing (Gemini 2.5 Flash):</strong> The uploaded PDF is extracted to plain
+          text using pypdf. The text is sent to Gemini with a structured prompt requesting JSON output:
+          skills, job titles, experience level, education, and 5–8 tailored Adzuna search queries.
+        </p>
+        <p style="margin-bottom:0.6rem">
+          <strong>Step 2 — Job Fetching (Adzuna API):</strong> Each Gemini-generated query is sent to
+          Adzuna's search endpoint (<em>api.adzuna.com/v1/api/jobs/us/search</em>) with
+          <em>results_per_page=50</em>. Results are filtered by a regex that removes senior-level titles
+          (senior, lead, manager, director, VP, etc.) using word boundaries.
+        </p>
+        <p style="margin-bottom:0.6rem">
+          <strong>Step 3 — Keyword Matching Score:</strong> Each job is scored by counting how many of
+          the candidate's extracted skills and target job titles appear in the job's combined text
+          (title + company + description + industry). Raw overlap (0–1) is normalised to 80–99%
+          since all results are already contextually relevant.
+        </p>
+        <p>
+          <strong>Step 4 — Ranking:</strong> Jobs are sorted by match score descending and returned
+          to the frontend. Filters (location, industry, visa sponsorship, search) run as SQL
+          <em>ILIKE</em> queries server-side before scoring.
+        </p>
       </div>
     </div>
   </div>
@@ -158,210 +290,265 @@
 </div>
 
 <script>
-const COLORS = ["#4f46e5","#0891b2","#059669","#d97706","#dc2626","#7c3aed","#db2777","#0284c7"];
+const COLORS = ["#4f46e5","#0891b2","#059669","#d97706","#dc2626","#7c3aed","#db2777","#0284c7","#65a30d","#ea580c"];
+const charts = {};
 
-async function loadStats() {
-  try {
-    const res  = await fetch("/api/dashboard/stats");
-    const data = await res.json();
+function showTab(name, btn) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  btn.classList.add("active");
+}
 
-    if (data.error) {
-      document.getElementById("statsSection").innerHTML =
-        `<div class="error-msg">${data.error}</div>`;
-      return;
+function mkChart(id, type, labels, values, opts = {}) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), {
+    type,
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: opts.color || COLORS,
+                   borderRadius: opts.radius ?? 6, label: opts.label || "" }]
+    },
+    options: {
+      indexAxis: opts.horizontal ? "y" : "x",
+      plugins: { legend: { display: opts.legend ?? false },
+                 tooltip: opts.tooltip ? { callbacks: { label: opts.tooltip } } : {} },
+      scales: type === "doughnut" ? {} : {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, grid: { display: opts.grid ?? false } }
+      }
     }
+  });
+}
 
-    const p = data.profile;
-    document.getElementById("statsSection").innerHTML = `
-      ${p ? `
-      <div class="profile-card">
-        <h2>Resume Profile</h2>
-        <div class="meta-row">
-          <span><strong>Experience:</strong> ${p.experience || "—"}</span>
-          <span><strong>Education:</strong> ${p.education || "—"}</span>
-          <span><strong>Target Roles:</strong> ${(p.titles || []).join(", ") || "—"}</span>
-          <span><strong>Skills Detected:</strong> ${p.skills_count}</span>
-        </div>
-      </div>` : ""}
+// ── EDA ────────────────────────────────────────────────────────────────────
+async function loadEDA() {
+  const [statsRes, marketRes] = await Promise.all([
+    fetch("/api/dashboard/stats"),
+    fetch("/api/dashboard/market")
+  ]);
+  const stats  = await statsRes.json();
+  const market = await marketRes.json();
 
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-label">Total Jobs</div>
-          <div class="stat-value">${data.total_jobs}</div>
-          <div class="stat-sub">in current session</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Avg Match Score</div>
-          <div class="stat-value">${data.avg_match ?? "—"}%</div>
-          <div class="stat-sub">keyword overlap score</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Jobs Saved</div>
-          <div class="stat-value">${data.saved}</div>
-          <div class="stat-sub">hearted listings</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Salary Listed</div>
-          <div class="stat-value">${data.salary_pct}%</div>
-          <div class="stat-sub">${data.with_salary} of ${data.total_jobs} jobs</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Locations</div>
-          <div class="stat-value">${Object.keys(data.top_locations).length}</div>
-          <div class="stat-sub">states covered</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Industries</div>
-          <div class="stat-value">${Object.keys(data.industry_breakdown).length}</div>
-          <div class="stat-sub">categories found</div>
-        </div>
-      </div>
-    `;
-
-    document.getElementById("chartsSection").style.display = "";
-    renderCharts(data);
-  } catch(e) {
-    document.getElementById("statsSection").innerHTML =
-      `<div class="error-msg">Failed to load stats: ${e.message}</div>`;
+  if (stats.error) {
+    document.getElementById("edaStats").innerHTML = `<div class="error-msg">${stats.error}</div>`;
+    return;
   }
+
+  const p = stats.profile;
+  document.getElementById("edaStats").innerHTML = `
+    ${p ? `<div style="background:var(--indigo-light);border:1.5px solid #c7d2fe;border-radius:10px;padding:1rem 1.2rem;margin-bottom:1.5rem;font-size:0.82rem;color:var(--gray-700)">
+      <strong style="color:var(--navy);display:block;margin-bottom:0.4rem">Resume Profile</strong>
+      <span style="margin-right:1.5rem"><strong>Experience:</strong> ${p.experience||"—"}</span>
+      <span style="margin-right:1.5rem"><strong>Education:</strong> ${p.education||"—"}</span>
+      <span style="margin-right:1.5rem"><strong>Target Roles:</strong> ${(p.titles||[]).join(", ")||"—"}</span>
+      <span><strong>Skills Detected:</strong> ${p.skills_count}</span>
+    </div>` : ""}
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total Jobs</div><div class="stat-value">${stats.total_jobs}</div><div class="stat-sub">in session</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Match Score</div><div class="stat-value">${stats.avg_match??'—'}%</div><div class="stat-sub">keyword overlap</div></div>
+      <div class="stat-card"><div class="stat-label">Saved</div><div class="stat-value">${stats.saved}</div><div class="stat-sub">hearted jobs</div></div>
+      <div class="stat-card"><div class="stat-label">Salary Listed</div><div class="stat-value">${stats.salary_pct}%</div><div class="stat-sub">${stats.with_salary} jobs</div></div>
+      <div class="stat-card"><div class="stat-label">States</div><div class="stat-value">${Object.keys(stats.top_locations).length}</div><div class="stat-sub">locations</div></div>
+      <div class="stat-card"><div class="stat-label">Industries</div><div class="stat-value">${Object.keys(stats.industry_breakdown).length}</div><div class="stat-sub">categories</div></div>
+    </div>`;
+
+  document.getElementById("edaCharts").style.display = "";
+
+  const sb = market.salary_buckets || {};
+  mkChart("salaryDistChart","bar",Object.keys(sb),Object.values(sb));
+
+  const ind = stats.industry_breakdown;
+  mkChart("industryChart","bar",Object.keys(ind),Object.values(ind),{horizontal:true});
+
+  const ld = stats.top_locations;
+  mkChart("locationChart","bar",Object.keys(ld),Object.values(ld),{horizontal:true,color:"#0891b2"});
+
+  const ia = market.domain_avg_salary||{};
+  const iaK = Object.keys(ia).sort((a,b)=>ia[b]-ia[a]);
+  mkChart("indSalaryChart","bar",iaK,iaK.map(k=>Math.round(ia[k]/1000)),
+    {horizontal:true,color:"#059669",tooltip:ctx=>`$${ctx.raw}k avg`});
+
+  const sd = stats.score_distribution;
+  mkChart("scoreChart","bar",sd.labels,sd.counts,{color:"#4f46e5"});
+
+  // Classification tab data
+  loadClassification(stats);
 }
 
-function renderCharts(data) {
-  const ind   = data.industry_breakdown;
-  const indK  = Object.keys(ind);
-  const indV  = indK.map(k => ind[k]);
-
-  new Chart(document.getElementById("industryChart"), {
-    type: "bar",
-    data: { labels: indK, datasets: [{ data: indV, backgroundColor: COLORS, borderRadius: 6 }] },
-    options: { indexAxis: "y", plugins: { legend: { display: false } },
-               scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
-  });
-
-  const sd = data.score_distribution;
-  new Chart(document.getElementById("scoreChart"), {
-    type: "bar",
-    data: { labels: sd.labels, datasets: [{ data: sd.counts, backgroundColor: "#4f46e5",
-            borderRadius: 6, label: "Jobs" }] },
-    options: { plugins: { legend: { display: false } },
-               scales: { y: { beginAtZero: true, grid: { display: false } },
-                         x: { grid: { display: false } } } }
-  });
-
-  const loc  = data.top_locations;
-  const locK = Object.keys(loc);
-  const locV = locK.map(k => loc[k]);
-  new Chart(document.getElementById("locationChart"), {
-    type: "bar",
-    data: { labels: locK, datasets: [{ data: locV, backgroundColor: "#0891b2", borderRadius: 6 }] },
-    options: { indexAxis: "y", plugins: { legend: { display: false } },
-               scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
-  });
-
-  new Chart(document.getElementById("salaryChart"), {
-    type: "doughnut",
-    data: { labels: ["Has Salary", "No Salary"],
-            datasets: [{ data: [data.with_salary, data.total_jobs - data.with_salary],
-                         backgroundColor: ["#059669","#e5e7eb"], borderWidth: 0 }] },
-    options: { plugins: { legend: { position: "bottom" } }, cutout: "65%" }
-  });
-}
-
+// ── Clustering ─────────────────────────────────────────────────────────────
 async function loadClusters() {
-  try {
-    const res  = await fetch("/api/dashboard/clusters");
-    const data = await res.json();
-    const el   = document.getElementById("clusterSection");
+  const res  = await fetch("/api/dashboard/clusters");
+  const data = await res.json();
+  const el   = document.getElementById("clusterSection");
 
-    if (data.error) {
-      el.innerHTML = `<div class="error-msg">${data.error}</div>`; return;
-    }
+  if (data.error) { el.innerHTML = `<div class="error-msg">${data.error}</div>`; return; }
 
-    const silColor = data.silhouette_score > 0.3 ? "badge-green" :
-                     data.silhouette_score > 0.1 ? "badge-yellow" : "badge-indigo";
+  const silColor = !data.silhouette_score ? "badge-indigo" :
+                   data.silhouette_score > 0.3 ? "badge-green" :
+                   data.silhouette_score > 0.1 ? "badge-yellow" : "badge-red";
 
-    el.innerHTML = `
-      <div class="cluster-meta">
-        <span class="badge badge-indigo">K = ${data.n_clusters} clusters</span>
-        <span class="badge badge-indigo">${data.total_jobs} jobs analysed</span>
-        ${data.silhouette_score != null
-          ? `<span class="badge ${silColor}">Silhouette Score: ${data.silhouette_score}
-             ${data.silhouette_score > 0.3 ? "✓ Good" : data.silhouette_score > 0.1 ? "~ Fair" : "Low"}</span>`
-          : ""}
-        <span class="badge badge-indigo">Inertia: ${data.inertia}</span>
-      </div>
-      <div class="cluster-grid">
-        ${data.clusters.map((c, i) => `
-          <div class="cluster-card" style="border-top-color:${COLORS[i % COLORS.length]}">
-            <div class="cluster-title">${c.label}</div>
-            <div class="cluster-count">${c.count} jobs in this cluster</div>
-            <div class="term-list">
-              ${c.top_terms.map(t => `<span class="term-tag">${t}</span>`).join("")}
-            </div>
-            <ul class="sample-jobs">
-              ${c.sample_jobs.map(j => `<li>${j}</li>`).join("")}
-            </ul>
-          </div>
-        `).join("")}
-      </div>
-    `;
-  } catch(e) {
-    document.getElementById("clusterSection").innerHTML =
-      `<div class="error-msg">Clustering failed: ${e.message}</div>`;
-  }
+  el.innerHTML = `
+    <div class="badge-row">
+      <span class="badge badge-indigo">K = ${data.n_clusters} clusters</span>
+      <span class="badge badge-indigo">${data.total_jobs} jobs</span>
+      ${data.silhouette_score != null
+        ? `<span class="badge ${silColor}">Silhouette: ${data.silhouette_score}
+           (${data.silhouette_score>0.3?"Good":data.silhouette_score>0.1?"Fair":"Low"})</span>`:""}
+      <span class="badge badge-indigo">Inertia: ${data.inertia}</span>
+    </div>
+    <div class="cluster-grid">
+      ${data.clusters.map((c,i)=>`
+        <div class="cluster-card" style="border-top-color:${COLORS[i%COLORS.length]}">
+          <div class="cluster-title">${c.label}</div>
+          <div class="cluster-count">${c.count} jobs · ${Math.round(c.count/data.total_jobs*100)}% of market</div>
+          <div class="term-list">${c.top_terms.map(t=>`<span class="term-tag">${t}</span>`).join("")}</div>
+          <ul class="sample-jobs">${c.sample_jobs.map(j=>`<li>${j}</li>`).join("")}</ul>
+        </div>`).join("")}
+    </div>`;
 }
 
-async function loadMarket() {
-  try {
-    const res  = await fetch("/api/dashboard/market");
-    const data = await res.json();
-    const el   = document.getElementById("marketSection");
+// ── Salary ─────────────────────────────────────────────────────────────────
+async function loadSalary() {
+  const res  = await fetch("/api/dashboard/salary-prediction");
+  const data = await res.json();
+  const el   = document.getElementById("salarySection");
 
-    if (data.error) { el.innerHTML = `<div class="error-msg">${data.error}</div>`; return; }
+  if (data.error) { el.innerHTML = `<div class="error-msg">${data.error}</div>`; return; }
 
-    el.innerHTML = "";
-    document.getElementById("marketCharts").style.display = "";
+  const accColor = !data.cv_accuracy ? "badge-indigo" :
+                   data.cv_accuracy > 0.6 ? "badge-green" :
+                   data.cv_accuracy > 0.4 ? "badge-yellow" : "badge-red";
 
-    const sb = data.salary_buckets;
-    new Chart(document.getElementById("salaryDistChart"), {
-      type: "bar",
-      data: { labels: Object.keys(sb), datasets: [{ data: Object.values(sb),
-              backgroundColor: COLORS, borderRadius: 6 }] },
-      options: { plugins: { legend: { display: false } },
-                 scales: { y: { beginAtZero: true, grid: { display: false } },
-                           x: { grid: { display: false } } } }
-    });
+  el.innerHTML = `
+    <div class="badge-row">
+      <span class="badge badge-indigo">${data.labeled_count} jobs with salary data</span>
+      <span class="badge badge-indigo">${data.unlabeled_count} jobs missing salary</span>
+      <span class="badge badge-indigo">${data.feature_count} features (industry + location)</span>
+      ${data.cv_accuracy!=null
+        ? `<span class="badge ${accColor}">CV Accuracy: ${Math.round(data.cv_accuracy*100)}% (${data.cv_folds}-fold)</span>`:""}
+    </div>`;
 
-    const ds = data.domain_avg_salary;
-    const dsK = Object.keys(ds).sort((a,b) => ds[b]-ds[a]);
-    new Chart(document.getElementById("domainSalaryChart"), {
-      type: "bar",
-      data: { labels: dsK, datasets: [{ data: dsK.map(k => Math.round(ds[k]/1000)),
-              backgroundColor: "#059669", borderRadius: 6, label: "Avg $k" }] },
-      options: { indexAxis: "y", plugins: { legend: { display: false },
-                 tooltip: { callbacks: { label: ctx => `$${ctx.raw}k avg` } } },
-                 scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
-    });
+  document.getElementById("salaryCharts").style.display = "";
 
-    const ld = data.location_density;
-    const ldK = Object.keys(ld);
-    new Chart(document.getElementById("locationDensityChart"), {
-      type: "bar",
-      data: { labels: ldK, datasets: [{ data: ldK.map(k => ld[k]),
-              backgroundColor: "#7c3aed", borderRadius: 6 }] },
-      options: { plugins: { legend: { display: false } },
-                 scales: { y: { beginAtZero: true, grid: { display: false } },
-                           x: { grid: { display: false } } } }
-    });
-  } catch(e) {
-    document.getElementById("marketSection").innerHTML =
-      `<div class="error-msg">Market analysis failed: ${e.message}</div>`;
-  }
+  const sd = data.salary_dist;
+  mkChart("salRangeChart","bar",Object.keys(sd),Object.values(sd));
+
+  const ia = data.industry_avg;
+  const iaK = Object.keys(ia).sort((a,b)=>ia[b]-ia[a]);
+  mkChart("salDomainChart","bar",iaK,iaK.map(k=>Math.round(ia[k]/1000)),
+    {horizontal:true,color:"#059669",tooltip:ctx=>`$${ctx.raw}k avg`});
+
+  const tbody = document.getElementById("predTable");
+  tbody.innerHTML = data.predictions.map(p=>`
+    <tr><td>${p.title}</td><td>${p.company}</td><td>${p.industry||"—"}</td>
+    <td><span class="badge badge-green">${p.predicted_salary}</span></td></tr>`).join("");
 }
 
-loadStats();
+// ── Classification ──────────────────────────────────────────────────────────
+function loadClassification(stats) {
+  const ind   = stats.industry_breakdown;
+  const total = Object.values(ind).reduce((a,b)=>a+b,0);
+
+  mkChart("classDistChart","doughnut",Object.keys(ind),Object.values(ind),{legend:true});
+
+  const tbody = document.getElementById("classTable");
+  tbody.innerHTML = Object.entries(ind)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([name,count])=>`
+      <tr>
+        <td><strong>${name}</strong></td>
+        <td>${count}</td>
+        <td>${Math.round(count/total*100)}%</td>
+        <td><div class="progress-bar"><div class="progress-fill" style="width:${Math.round(count/total*100)}%;background:var(--indigo)"></div></div></td>
+      </tr>`).join("");
+}
+
+// ── Evaluation ──────────────────────────────────────────────────────────────
+async function loadEvaluation() {
+  const [statsRes, clusterRes, salRes] = await Promise.all([
+    fetch("/api/dashboard/stats"),
+    fetch("/api/dashboard/clusters"),
+    fetch("/api/dashboard/salary-prediction")
+  ]);
+  const stats   = await statsRes.json();
+  const cluster = await clusterRes.json();
+  const sal     = await salRes.json();
+
+  const el = document.getElementById("evalGrid");
+  if (stats.error) { el.innerHTML = `<div class="error-msg">${stats.error}</div>`; return; }
+
+  const sil  = cluster.silhouette_score;
+  const acc  = sal.cv_accuracy;
+  const cov  = stats.salary_pct;
+  const avgM = stats.avg_match;
+
+  el.innerHTML = `
+    <div class="eval-card">
+      <div class="eval-title">🔵 Clustering (K-Means)
+        <span class="badge ${sil>0.3?"badge-green":sil>0.1?"badge-yellow":"badge-red"}">
+          ${sil!=null?`Silhouette: ${sil}`:"N/A"}</span>
+      </div>
+      <div class="eval-desc">Silhouette score measures how similar a job is to its own cluster vs others.
+        Range −1 to +1. Above 0.3 is good, above 0.5 is strong. Inertia measures total within-cluster variance.</div>
+      <div class="metric-row"><span class="metric-name">Silhouette Score</span><span class="metric-value">${sil??'—'}</span></div>
+      <div class="metric-row"><span class="metric-name">Inertia</span><span class="metric-value">${cluster.inertia??'—'}</span></div>
+      <div class="metric-row"><span class="metric-name">Number of Clusters</span><span class="metric-value">${cluster.n_clusters??'—'}</span></div>
+      <div class="metric-row"><span class="metric-name">Jobs Clustered</span><span class="metric-value">${cluster.total_jobs??'—'}</span></div>
+    </div>
+
+    <div class="eval-card">
+      <div class="eval-title">🏷️ Classification (Industry)
+        <span class="badge badge-indigo">Rule-Based</span>
+      </div>
+      <div class="eval-desc">Keyword-matching classifier assigns each job to one of 8 industry categories.
+        Coverage % measures how many jobs received a non-"Other" label. Higher coverage = better signal.</div>
+      <div class="metric-row">
+        <span class="metric-name">Labelled Jobs</span>
+        <span class="metric-value">${Object.entries(stats.industry_breakdown||{}).filter(([k])=>k!=="Other").reduce((a,[,v])=>a+v,0)}</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-name">Coverage (non-Other)</span>
+        <span class="metric-value">${stats.total_jobs?Math.round((stats.total_jobs-(stats.industry_breakdown?.Other||0))/stats.total_jobs*100):0}%</span>
+      </div>
+      <div class="metric-row"><span class="metric-name">Categories</span><span class="metric-value">${Object.keys(stats.industry_breakdown||{}).length}</span></div>
+      <div class="metric-row"><span class="metric-name">Method</span><span class="metric-value">Keyword rules</span></div>
+    </div>
+
+    <div class="eval-card">
+      <div class="eval-title">💰 Salary Prediction (Random Forest)
+        <span class="badge ${acc>0.6?"badge-green":acc>0.4?"badge-yellow":"badge-red"}">
+          ${acc!=null?`${Math.round(acc*100)}% acc`:"N/A"}</span>
+      </div>
+      <div class="eval-desc">Random Forest trained on industry + location features to predict salary bucket.
+        Evaluated with ${sal.cv_folds??3}-fold cross-validation. Higher accuracy = more reliable salary estimates.</div>
+      <div class="metric-row"><span class="metric-name">CV Accuracy</span><span class="metric-value">${acc!=null?Math.round(acc*100)+"%":"—"}</span></div>
+      <div class="metric-row"><span class="metric-name">Training Samples</span><span class="metric-value">${sal.labeled_count??'—'}</span></div>
+      <div class="metric-row"><span class="metric-name">Features</span><span class="metric-value">${sal.feature_count??'—'} (industry + location)</span></div>
+      <div class="metric-row"><span class="metric-name">Predictions Made</span><span class="metric-value">${(sal.predictions||[]).length}</span></div>
+    </div>
+
+    <div class="eval-card">
+      <div class="eval-title">🎯 Keyword Matching Ranker
+        <span class="badge badge-indigo">Avg ${avgM??'—'}%</span>
+      </div>
+      <div class="eval-desc">Keyword overlap counts how many resume terms appear in job text, normalised to 80–99%.
+        All results are already contextually relevant (Gemini wrote queries for your resume), so 80% represents
+        a valid baseline match — not a low score.</div>
+      <div class="metric-row"><span class="metric-name">Score Range</span><span class="metric-value">80% – 99%</span></div>
+      <div class="metric-row"><span class="metric-name">Average Score</span><span class="metric-value">${avgM??'—'}%</span></div>
+      <div class="metric-row"><span class="metric-name">Jobs Ranked</span><span class="metric-value">${stats.total_jobs??'—'}</span></div>
+      <div class="metric-row"><span class="metric-name">Method</span><span class="metric-value">TF overlap → normalise</span></div>
+    </div>`;
+
+  document.getElementById("evalExplainer").style.display = "";
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+loadEDA();
 loadClusters();
-loadMarket();
+loadSalary();
+loadEvaluation();
 </script>
 </body>
 </html>

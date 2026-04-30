@@ -441,19 +441,23 @@ def update_notes(job_id):
 @app.route("/api/jobs/<int:job_id>/similar")
 def similar_jobs(job_id):
     job = Job.query.get_or_404(job_id)
-    terms = set(
-        w for w in f"{job.title} {job.industry or ''}".lower().split()
-        if len(w) > 3
+    stop = {"and","the","for","with","this","that","are","you","will","have","from","our","your"}
+    title_terms = set(
+        w for w in re.sub(r"[^\w\s]", "", job.title.lower()).split()
+        if len(w) > 2 and w not in stop
     )
-    candidates = Job.query.filter(
-        Job.id != job_id, Job.is_dismissed == False
-    ).all()
+    candidates = Job.query.filter(Job.id != job_id, Job.is_dismissed == False).all()
     scored = []
     for c in candidates:
-        c_text = f"{c.title} {c.description_snippet or ''} {c.industry or ''}".lower()
-        hits = sum(1 for t in terms if t in c_text)
-        if hits > 0:
-            scored.append((c, hits))
+        score = 0
+        if job.industry and c.industry == job.industry:
+            score += 6
+        c_words = set(re.sub(r"[^\w\s]", "", c.title.lower()).split())
+        score += len(title_terms & c_words) * 3
+        c_desc = (c.description_snippet or "").lower()
+        score += sum(1 for t in title_terms if t in c_desc)
+        if score > 0:
+            scored.append((c, score))
     scored.sort(key=lambda x: x[1], reverse=True)
     return jsonify([c.to_dict() for c, _ in scored[:6]])
 
@@ -471,6 +475,81 @@ def resume_text():
 @app.route("/dashboard")
 def dashboard():
     return render_template("dashboard.html")
+
+
+@app.route("/api/dashboard/salary-prediction")
+def salary_prediction():
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.preprocessing import LabelEncoder
+    from sklearn.model_selection import cross_val_score
+    import numpy as np
+
+    jobs = Job.query.filter_by(is_dismissed=False).all()
+    num_re = re.compile(r'\$([\d,]+)')
+
+    BUCKETS = ["<$50k", "$50–75k", "$75–100k", "$100–130k", "$130k+"]
+
+    def bucket(mid):
+        if mid < 50000:  return "<$50k"
+        if mid < 75000:  return "$50–75k"
+        if mid < 100000: return "$75–100k"
+        if mid < 130000: return "$100–130k"
+        return "$130k+"
+
+    labeled, unlabeled = [], []
+    for job in jobs:
+        if job.salary:
+            nums = [int(n.replace(",","")) for n in num_re.findall(job.salary)]
+            if nums:
+                labeled.append({"job": job, "mid": sum(nums)/len(nums), "bucket": bucket(sum(nums)/len(nums))})
+                continue
+        unlabeled.append(job)
+
+    if len(labeled) < 6:
+        return jsonify({"error": f"Only {len(labeled)} jobs have salary data — need at least 6 to train. Try Refresh Jobs."}), 400
+
+    all_inds = sorted(set(j["job"].industry or "Other" for j in labeled))
+    all_locs = sorted(set(j["job"].location or "Unknown" for j in labeled))
+
+    def featurize(job):
+        return (
+            [1 if (job.industry or "Other") == i else 0 for i in all_inds] +
+            [1 if (job.location or "Unknown") == l else 0 for l in all_locs]
+        )
+
+    X = [featurize(j["job"]) for j in labeled]
+    y = [j["bucket"] for j in labeled]
+
+    le  = LabelEncoder()
+    y_e = le.fit_transform(y)
+    clf = RandomForestClassifier(n_estimators=100, random_state=42)
+
+    cv  = min(5, len(labeled) // 2)
+    acc = round(float(cross_val_score(clf, X, y_e, cv=cv, scoring="accuracy").mean()), 3) if cv >= 2 else None
+    clf.fit(X, y_e)
+
+    predictions = []
+    for job in unlabeled[:30]:
+        pred = le.inverse_transform(clf.predict([featurize(job)]))[0]
+        predictions.append({"title": job.title, "company": job.company,
+                             "industry": job.industry, "predicted_salary": pred})
+
+    dist = {b: sum(1 for j in labeled if j["bucket"] == b) for b in BUCKETS}
+    ind_avg = {}
+    for j in labeled:
+        ind_avg.setdefault(j["job"].industry or "Other", []).append(j["mid"])
+    ind_avg = {k: round(sum(v)/len(v)) for k, v in ind_avg.items()}
+
+    return jsonify({
+        "labeled_count":    len(labeled),
+        "unlabeled_count":  len(unlabeled),
+        "cv_accuracy":      acc,
+        "cv_folds":         cv,
+        "salary_dist":      dist,
+        "industry_avg":     ind_avg,
+        "predictions":      predictions,
+        "feature_count":    len(all_inds) + len(all_locs),
+    })
 
 
 @app.route("/api/dashboard/market")

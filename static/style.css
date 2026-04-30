@@ -707,6 +707,34 @@ header .subtitle {
 .similar-meta  { font-size: 0.74rem; color: var(--gray-500); margin-top: 0.15rem; }
 .similar-loading { font-size: 0.8rem; color: var(--gray-500); padding: 0 1.5rem; font-style: italic; }
 
+/* ── Resume viewer ────────────────────────────────────────────────────────── */
+.resume-viewer { max-height: 65vh; overflow-y: auto; font-size: 0.82rem; line-height: 1.6; }
+
+.resume-section-header {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--indigo);
+  margin: 1.1rem 0 0.3rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1.5px solid #c7d2fe;
+}
+.resume-section-header:first-child { margin-top: 0; }
+
+.resume-bullet {
+  color: var(--gray-700);
+  padding-left: 1rem;
+  position: relative;
+  margin-bottom: 0.15rem;
+}
+.resume-bullet::before { content: "›"; position: absolute; left: 0; color: var(--indigo); }
+
+.resume-line {
+  color: var(--gray-700);
+  margin-bottom: 0.15rem;
+}
+
 /* ── CV Guide ─────────────────────────────────────────────────────────────── */
 .btn-cv-guide {
   width: 100%;

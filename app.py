@@ -1,7 +1,8 @@
 import os
 import json
 import re
-from flask import Flask, render_template, jsonify, request
+import uuid
+from flask import Flask, render_template, jsonify, request, session
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from models import db, Job, Profile
@@ -10,6 +11,7 @@ from services.adzuna import fetch_jobs
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "jobfinder-dev-secret-change-in-prod")
 
 _db_url = os.getenv("POSTGRES_URL", "sqlite:///jobs.db")
 if _db_url.startswith("postgres://"):
@@ -29,6 +31,7 @@ with app.app_context():
             ("summary",          "TEXT"),
             ("education",        "VARCHAR(300)"),
             ("resume_text",      "TEXT"),
+            ("session_id",       "VARCHAR(36)"),
         ]:
             try:
                 _conn.execute(db.text(
@@ -43,6 +46,7 @@ with app.app_context():
             ("ai_description",     "TEXT"),
             ("ai_salary_estimate", "VARCHAR(200)"),
             ("cv_guide",           "TEXT"),
+            ("session_id",         "VARCHAR(36)"),
         ]:
             try:
                 _conn.execute(db.text(
@@ -113,8 +117,14 @@ def calc_match_score(job: Job, skills: list[str], titles: list[str]) -> int:
     return min(99, 80 + round(raw * 19))
 
 
+def get_uid() -> str:
+    if "uid" not in session:
+        session["uid"] = str(uuid.uuid4())
+    return session["uid"]
+
+
 def _active_profile() -> Profile | None:
-    return Profile.query.filter_by(id=1).first()
+    return Profile.query.filter_by(session_id=get_uid()).first()
 
 
 def _load_json(val) -> list:
@@ -130,9 +140,9 @@ def _load_json(val) -> list:
 
 @app.route("/")
 def index():
-    # Fresh start on every page load
-    Profile.query.filter_by(id=1).delete()
-    Job.query.filter(Job.is_saved == False).delete()
+    uid = get_uid()
+    Profile.query.filter_by(session_id=uid).delete()
+    Job.query.filter(Job.session_id == uid, Job.is_saved == False).delete()
     db.session.commit()
     return render_template("index.html")
 
@@ -186,10 +196,10 @@ Return exactly this JSON:
 
         data = json.loads(gemini_generate(prompt))
 
-        # Upsert profile (always id=1)
-        profile = Profile.query.filter_by(id=1).first()
+        uid = get_uid()
+        profile = Profile.query.filter_by(session_id=uid).first()
         if profile is None:
-            profile = Profile(id=1)
+            profile = Profile(session_id=uid)
             db.session.add(profile)
 
         profile.skills           = json.dumps(data.get("skills", []))
@@ -201,10 +211,9 @@ Return exactly this JSON:
         profile.resume_text      = text[:6000]
         db.session.commit()
 
-        # Fetch and cache jobs from Adzuna using the profile's queries
         queries = data.get("search_queries", [])
         if queries:
-            _refresh_jobs(queries)
+            _refresh_jobs(queries, uid)
 
         return jsonify({
             "skills":           data.get("skills", []),
@@ -221,27 +230,28 @@ Return exactly this JSON:
 
 @app.route("/api/resume", methods=["DELETE"])
 def clear_resume():
-    Profile.query.filter_by(id=1).delete()
-    # Clear cached jobs so next upload gets fresh results
-    Job.query.filter(Job.is_saved == False).delete()
+    uid = get_uid()
+    Profile.query.filter_by(session_id=uid).delete()
+    Job.query.filter(Job.session_id == uid, Job.is_saved == False).delete()
     db.session.commit()
     return jsonify({"success": True})
 
 
-def _refresh_jobs(queries: list[str], limit: int = 6, max_pages: int = 2):
-    """Fetch jobs from Adzuna and store new ones."""
+def _refresh_jobs(queries: list[str], session_id: str, limit: int = 6, max_pages: int = 2):
+    """Fetch jobs from Adzuna and store new ones scoped to this session."""
     results = fetch_jobs(queries[:limit], results_per_page=50, max_pages=max_pages)
     count = 0
     for data in results:
-        if Job.query.filter_by(url=data["url"]).first():
+        if Job.query.filter_by(url=data["url"], session_id=session_id).first():
             continue
-        data["industry"] = classify_industry(data.get("title", ""), data.get("description_snippet", ""))
-        data["source"]   = "adzuna"
+        data["industry"]   = classify_industry(data.get("title", ""), data.get("description_snippet", ""))
+        data["source"]     = "adzuna"
+        data["session_id"] = session_id
         job = Job(**{k: v for k, v in data.items() if hasattr(Job, k)})
         db.session.add(job)
         count += 1
     db.session.commit()
-    print(f"[refresh] Added {count} new jobs")
+    print(f"[refresh] Added {count} new jobs for session {session_id[:8]}")
 
 
 @app.route("/api/jobs")
@@ -252,7 +262,8 @@ def get_jobs():
     location   = request.args.get("location", "").strip()
     industry   = request.args.get("industry", "").strip()
 
-    query = Job.query.filter_by(is_dismissed=False)
+    uid   = get_uid()
+    query = Job.query.filter_by(is_dismissed=False, session_id=uid)
     if saved_only:
         query = query.filter_by(is_saved=True)
     if visa_only:
@@ -294,7 +305,7 @@ def refresh_jobs():
     if not queries:
         return jsonify({"error": "No search queries found in profile."}), 400
     try:
-        _refresh_jobs(queries, limit=len(queries), max_pages=3)
+        _refresh_jobs(queries, get_uid(), limit=len(queries), max_pages=3)
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -302,14 +313,15 @@ def refresh_jobs():
 
 @app.route("/api/filters")
 def get_filters():
+    uid = get_uid()
     industry_rows = (
         db.session.query(Job.industry)
-        .filter(Job.industry.isnot(None), Job.industry != "", Job.industry != "Other")
+        .filter(Job.session_id == uid, Job.industry.isnot(None), Job.industry != "", Job.industry != "Other")
         .distinct().all()
     )
     location_rows = (
         db.session.query(Job.location)
-        .filter(Job.location.isnot(None), Job.location != "")
+        .filter(Job.session_id == uid, Job.location.isnot(None), Job.location != "")
         .distinct().all()
     )
     return jsonify({
@@ -446,7 +458,8 @@ def similar_jobs(job_id):
         w for w in re.sub(r"[^\w\s]", "", job.title.lower()).split()
         if len(w) > 2 and w not in stop
     )
-    candidates = Job.query.filter(Job.id != job_id, Job.is_dismissed == False).all()
+    uid = get_uid()
+    candidates = Job.query.filter(Job.id != job_id, Job.is_dismissed == False, Job.session_id == uid).all()
     scored = []
     for c in candidates:
         score = 0
@@ -484,7 +497,8 @@ def salary_prediction():
     from sklearn.model_selection import cross_val_score
     import numpy as np
 
-    jobs = Job.query.filter_by(is_dismissed=False).all()
+    uid  = get_uid()
+    jobs = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
     num_re = re.compile(r'\$([\d,]+)')
 
     BUCKETS = ["<$50k", "$50–75k", "$75–100k", "$100–130k", "$130k+"]
@@ -554,7 +568,8 @@ def salary_prediction():
 
 @app.route("/api/dashboard/market")
 def dashboard_market():
-    jobs = Job.query.filter_by(is_dismissed=False).all()
+    uid  = get_uid()
+    jobs = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
     if not jobs:
         return jsonify({"error": "No jobs loaded yet."}), 404
 
@@ -610,7 +625,8 @@ def dashboard_market():
 
 @app.route("/api/dashboard/stats")
 def dashboard_stats():
-    jobs    = Job.query.filter_by(is_dismissed=False).all()
+    uid     = get_uid()
+    jobs    = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
     profile = _active_profile()
     if not jobs:
         return jsonify({"error": "No jobs loaded yet — upload a resume first."}), 404
@@ -665,7 +681,8 @@ def dashboard_clusters():
     from sklearn.cluster import KMeans
     from sklearn.metrics import silhouette_score
 
-    jobs = Job.query.filter_by(is_dismissed=False).all()
+    uid  = get_uid()
+    jobs = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
     if len(jobs) < 8:
         return jsonify({"error": "Need at least 8 jobs to cluster. Refresh jobs first."}), 400
 

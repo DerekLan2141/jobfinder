@@ -1,6 +1,7 @@
 // ── State ──────────────────────────────────────────────────────────────────
 let profile           = null;
 let savedOnly         = false;
+let visaOnly          = false;
 let searchQuery       = "";
 let locationFilters   = [];
 let industryFilter    = "";
@@ -63,6 +64,7 @@ function syncProfileUI() {
 async function fetchJobs() {
   const p = new URLSearchParams();
   if (savedOnly) p.set("saved", "true");
+  if (visaOnly)  p.set("visa", "true");
   if (searchQuery) p.set("search", searchQuery);
   if (locationFilters.length) p.set("location", locationFilters.join(","));
   if (industryFilter) p.set("industry", industryFilter);
@@ -311,6 +313,12 @@ document.getElementById("savedToggle").addEventListener("click", function () {
   load();
 });
 
+document.getElementById("visaToggle").addEventListener("click", function () {
+  visaOnly = !visaOnly;
+  this.classList.toggle("active", visaOnly);
+  load();
+});
+
 document.getElementById("industrySelect").addEventListener("change", e => {
   industryFilter = e.target.value;
   load();
@@ -378,7 +386,9 @@ document.getElementById("resumeClear").addEventListener("click", async () => {
   industryFilter  = "";
   searchQuery     = "";
   savedOnly       = false;
+  visaOnly        = false;
   document.getElementById("savedToggle").classList.remove("active");
+  document.getElementById("visaToggle").classList.remove("active");
   document.getElementById("searchInput").value = "";
   document.getElementById("industrySelect").value = "";
   renderLocTags();

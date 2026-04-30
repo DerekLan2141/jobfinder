@@ -245,6 +245,7 @@ def _refresh_jobs(queries: list[str], limit: int = 6, max_pages: int = 2):
 @app.route("/api/jobs")
 def get_jobs():
     saved_only = request.args.get("saved") == "true"
+    visa_only  = request.args.get("visa") == "true"
     search     = request.args.get("search", "").strip()
     location   = request.args.get("location", "").strip()
     industry   = request.args.get("industry", "").strip()
@@ -252,6 +253,9 @@ def get_jobs():
     query = Job.query.filter_by(is_dismissed=False)
     if saved_only:
         query = query.filter_by(is_saved=True)
+    if visa_only:
+        visa_terms = ["visa sponsor", "h1b", "h-1b", "sponsorship", "will sponsor", "visa support", "work authorization"]
+        query = query.filter(db.or_(*[Job.description_snippet.ilike(f"%{t}%") for t in visa_terms]))
     if search:
         like = f"%{search}%"
         query = query.filter(db.or_(

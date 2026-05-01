@@ -132,6 +132,7 @@
 
 <div class="tab-bar">
   <button class="tab active" onclick="showTab('eda',this)">📊 EDA</button>
+  <button class="tab" onclick="showTab('market',this)">📍 Market Analysis</button>
   <button class="tab" onclick="showTab('clustering',this)">🔵 Clustering</button>
   <button class="tab" onclick="showTab('salary',this)">💰 Salary Analysis</button>
   <button class="tab" onclick="showTab('classification',this)">🏷️ Classification</button>
@@ -166,6 +167,40 @@
           <div class="chart-wrap" style="height:200px"><canvas id="scoreChart"></canvas></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ── Market Analysis ── -->
+  <div id="tab-market" class="tab-panel">
+    <div id="marketSection"><div class="loading"><span class="spinner"></span>Loading market data...</div></div>
+    <div id="marketContent" style="display:none">
+      <div id="marketPulse" class="stats-grid" style="margin-bottom:1.5rem"></div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h2>Industry Demand</h2>
+          <p style="font-size:0.73rem;color:var(--gray-500);margin-bottom:0.6rem">Number of open listings per sector</p>
+          <div class="chart-wrap"><canvas id="mktIndustryChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Geographic Distribution</h2>
+          <p style="font-size:0.73rem;color:var(--gray-500);margin-bottom:0.6rem">Top states by job count</p>
+          <div class="chart-wrap"><canvas id="mktLocChart"></canvas></div>
+        </div>
+        <div class="chart-card chart-wide">
+          <h2>Average Salary by Industry</h2>
+          <p style="font-size:0.73rem;color:var(--gray-500);margin-bottom:0.6rem">Based on jobs with listed salary data</p>
+          <div class="chart-wrap" style="height:200px"><canvas id="mktSalaryChart"></canvas></div>
+        </div>
+      </div>
+      <h2 style="margin-bottom:0.75rem">Industry × Location Breakdown</h2>
+      <div class="table-wrap" style="margin-bottom:1.5rem">
+        <table class="data-table">
+          <thead><tr id="mktHeatHead"></tr></thead>
+          <tbody id="mktHeatBody"></tbody>
+        </table>
+      </div>
+      <h2 style="margin-bottom:0.75rem">Market Insights</h2>
+      <div id="marketInsights" class="info-box" style="line-height:2"></div>
     </div>
   </div>
 
@@ -214,10 +249,10 @@
   <!-- ── Classification ── -->
   <div id="tab-classification" class="tab-panel">
     <div class="info-box">
-      <strong>Industry Classification:</strong> Each job is classified into one of 8 industry
+      <strong>Industry Classification:</strong> Each job is classified into one of 16 industry
       categories using keyword matching on the title and description snippet. This is a
-      rule-based classifier — fast, interpretable, and explainable. The rules are ordered
-      by specificity (cybersecurity is matched before software engineering to avoid overlap).
+      rule-based classifier — fast, interpretable, and explainable. Rules are ordered
+      by specificity (e.g. Cybersecurity before Software Engineering to prevent overlap).
     </div>
     <div class="charts-grid">
       <div class="chart-card">
@@ -226,15 +261,23 @@
       </div>
       <div class="chart-card">
         <h2>Classification Rules</h2>
-        <div style="font-size:0.78rem;line-height:1.9;color:var(--gray-700);overflow-y:auto;max-height:240px">
-          <div><strong style="color:var(--navy)">Cybersecurity</strong> — cybersecurity · security engineer · security analyst · infosec</div>
-          <div><strong style="color:var(--navy)">Data & Analytics</strong> — data scientist · data analyst · machine learning · ml engineer · ai engineer</div>
-          <div><strong style="color:var(--navy)">Product Management</strong> — product manager · product owner</div>
-          <div><strong style="color:var(--navy)">Software Engineering</strong> — software engineer · backend · frontend · full stack · devops · mobile</div>
-          <div><strong style="color:var(--navy)">Design</strong> — designer · ux · user experience · graphic design</div>
-          <div><strong style="color:var(--navy)">Finance</strong> — financial analyst · finance · accounting · investment · banking</div>
-          <div><strong style="color:var(--navy)">Marketing</strong> — marketing · seo · social media · brand · copywriter</div>
-          <div><strong style="color:var(--navy)">Sales</strong> — sales · business development · account executive · customer success</div>
+        <div style="font-size:0.75rem;line-height:1.85;color:var(--gray-700);overflow-y:auto;max-height:240px">
+          <div><strong style="color:var(--navy)">Cybersecurity</strong> — security engineer · security analyst · infosec · SOC analyst · pentest</div>
+          <div><strong style="color:var(--navy)">Data & Analytics</strong> — data scientist · data analyst · ML engineer · AI engineer · BI analyst</div>
+          <div><strong style="color:var(--navy)">Product Management</strong> — product manager · product owner · product analyst</div>
+          <div><strong style="color:var(--navy)">Software Engineering</strong> — software engineer · backend · frontend · full stack · web developer · mobile</div>
+          <div><strong style="color:var(--navy)">DevOps & Cloud</strong> — devops · SRE · cloud engineer · platform engineer · kubernetes · terraform</div>
+          <div><strong style="color:var(--navy)">IT Support</strong> — help desk · IT support · sysadmin · system administrator · desktop support</div>
+          <div><strong style="color:var(--navy)">Design</strong> — UX designer · UI designer · graphic design · visual design · product design</div>
+          <div><strong style="color:var(--navy)">Finance</strong> — financial analyst · accounting · investment · banking · audit · actuarial</div>
+          <div><strong style="color:var(--navy)">Marketing</strong> — digital marketing · SEO · email marketing · demand generation · paid media</div>
+          <div><strong style="color:var(--navy)">Content & Writing</strong> — technical writer · content writer · copywriter · editor · documentation</div>
+          <div><strong style="color:var(--navy)">Sales</strong> — account executive · business development · sales engineer · solutions engineer</div>
+          <div><strong style="color:var(--navy)">Customer Success</strong> — customer success · customer support · customer service · client support</div>
+          <div><strong style="color:var(--navy)">Healthcare</strong> — healthcare · clinical · nursing · pharma · biotech · life sciences</div>
+          <div><strong style="color:var(--navy)">Operations</strong> — project manager · program manager · business analyst · supply chain · logistics</div>
+          <div><strong style="color:var(--navy)">HR & Recruiting</strong> — recruiter · talent acquisition · HR generalist · people ops</div>
+          <div><strong style="color:var(--navy)">Legal & Compliance</strong> — attorney · paralegal · compliance · regulatory · contract manager</div>
           <div><strong style="color:var(--navy)">Other</strong> — fallback for no keyword match</div>
         </div>
       </div>
@@ -293,11 +336,19 @@
 const COLORS = ["#4f46e5","#0891b2","#059669","#d97706","#dc2626","#7c3aed","#db2777","#0284c7","#65a30d","#ea580c"];
 const charts = {};
 
+const _loaded = {};
 function showTab(name, btn) {
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   document.getElementById("tab-" + name).classList.add("active");
   btn.classList.add("active");
+  if (!_loaded[name]) {
+    _loaded[name] = true;
+    if (name === "market")     loadMarket();
+    if (name === "clustering") loadClusters();
+    if (name === "salary")     loadSalary();
+    if (name === "evaluation") loadEvaluation();
+  }
 }
 
 function mkChart(id, type, labels, values, opts = {}) {
@@ -374,6 +425,107 @@ async function loadEDA() {
 
   // Classification tab data
   loadClassification(stats);
+}
+
+// ── Market Analysis ────────────────────────────────────────────────────────
+async function loadMarket() {
+  const [statsRes, marketRes] = await Promise.all([
+    fetch("/api/dashboard/stats"),
+    fetch("/api/dashboard/market")
+  ]);
+  const stats  = await statsRes.json();
+  const market = await marketRes.json();
+  const el     = document.getElementById("marketSection");
+
+  if (stats.error) { el.innerHTML = `<div class="error-msg">${stats.error}</div>`; return; }
+  el.style.display = "none";
+  document.getElementById("marketContent").style.display = "";
+
+  // ── Pulse cards ──
+  const ind = stats.industry_breakdown || {};
+  const loc = market.location_density  || {};
+  const sal = market.domain_avg_salary || {};
+
+  const topInd  = Object.entries(ind).sort((a,b)=>b[1]-a[1])[0];
+  const topLoc  = Object.entries(loc).sort((a,b)=>b[1]-a[1])[0];
+  const topPay  = Object.entries(sal).sort((a,b)=>b[1]-a[1])[0];
+  const otherPct = ind["Other"] ? Math.round(ind["Other"] / stats.total_jobs * 100) : 0;
+
+  document.getElementById("marketPulse").innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Top Sector</div>
+      <div class="stat-value" style="font-size:1.3rem">${topInd?.[0]||"—"}</div>
+      <div class="stat-sub">${topInd?.[1]||0} listings</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Top Location</div>
+      <div class="stat-value" style="font-size:1.3rem">${topLoc?.[0]||"—"}</div>
+      <div class="stat-sub">${topLoc?.[1]||0} jobs</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Highest Paying</div>
+      <div class="stat-value" style="font-size:1.3rem">${topPay?.[0]||"—"}</div>
+      <div class="stat-sub">$${topPay?Math.round(topPay[1]/1000)+"k avg":"—"}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Sectors Found</div>
+      <div class="stat-value">${Object.keys(ind).length}</div>
+      <div class="stat-sub">${otherPct}% unclassified</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Listings</div>
+      <div class="stat-value">${stats.total_jobs}</div>
+      <div class="stat-sub">active in session</div>
+    </div>`;
+
+  // ── Industry demand (horizontal bar) ──
+  const indSorted = Object.entries(ind).filter(([k])=>k!=="Other").sort((a,b)=>b[1]-a[1]);
+  if (ind["Other"]) indSorted.push(["Other", ind["Other"]]);
+  mkChart("mktIndustryChart","bar",indSorted.map(([k])=>k),indSorted.map(([,v])=>v),
+    {horizontal:true, color: indSorted.map((_,i)=>COLORS[i%COLORS.length])});
+
+  // ── Location density (horizontal bar) ──
+  const locSorted = Object.entries(loc).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  mkChart("mktLocChart","bar",locSorted.map(([k])=>k),locSorted.map(([,v])=>v),
+    {horizontal:true, color:"#0891b2"});
+
+  // ── Salary by industry (horizontal bar, sorted) ──
+  const salSorted = Object.entries(sal).sort((a,b)=>b[1]-a[1]);
+  mkChart("mktSalaryChart","bar",salSorted.map(([k])=>k),salSorted.map(([,v])=>Math.round(v/1000)),
+    {horizontal:true, color:"#059669", tooltip:ctx=>`$${ctx.raw}k avg`});
+
+  // ── Industry × Location heatmap table ──
+  const ilData = market.industry_location || {};
+  const allLocs = [...new Set(Object.values(ilData).flatMap(l=>Object.keys(l)))]
+    .sort((a,b)=>(loc[b]||0)-(loc[a]||0)).slice(0,8);
+  const thead = document.getElementById("mktHeatHead");
+  thead.innerHTML = `<th>Industry</th>` + allLocs.map(l=>`<th>${l}</th>`).join("") + `<th>Total</th>`;
+  const tbody = document.getElementById("mktHeatBody");
+  const indKeys = Object.keys(ilData).sort((a,b)=>(ind[b]||0)-(ind[a]||0));
+  const maxCell = Math.max(...indKeys.flatMap(k=>allLocs.map(l=>ilData[k]?.[l]||0)));
+  tbody.innerHTML = indKeys.map(k=>{
+    const row = ilData[k] || {};
+    const total = Object.values(row).reduce((a,b)=>a+b,0);
+    const cells = allLocs.map(l=>{
+      const v = row[l]||0;
+      const opacity = maxCell > 0 ? Math.round((v/maxCell)*80+5) : 5;
+      return `<td style="background:rgba(79,70,229,${(opacity/100).toFixed(2)});text-align:center;font-weight:${v>0?600:400}">${v||""}</td>`;
+    });
+    return `<tr><td><strong>${k}</strong></td>${cells.join("")}<td style="font-weight:700;color:var(--navy)">${total}</td></tr>`;
+  }).join("");
+
+  // ── Insights ──
+  const compInds = Object.entries(ind).filter(([k])=>k!=="Other").sort((a,b)=>b[1]-a[1]);
+  const remoteJobs = Object.entries(loc).filter(([k])=>/remote/i.test(k)).reduce((s,[,v])=>s+v,0);
+  const remotePct  = stats.total_jobs ? Math.round(remoteJobs/stats.total_jobs*100) : 0;
+  const salCovPct  = stats.salary_pct;
+  document.getElementById("marketInsights").innerHTML = `
+    <strong>📌 Top demand sector:</strong> ${compInds[0]?.[0]||"—"} leads with ${compInds[0]?.[1]||0} listings (${compInds[0]?Math.round(compInds[0][1]/stats.total_jobs*100):0}% of market)<br>
+    <strong>📌 Runner-up:</strong> ${compInds[1]?.[0]||"—"} with ${compInds[1]?.[1]||0} listings<br>
+    <strong>📌 Best paying sector:</strong> ${topPay?.[0]||"—"} averaging $${topPay?Math.round(topPay[1]/1000)+"k":"—"}/year based on listed salaries<br>
+    <strong>📌 Remote opportunities:</strong> ${remotePct}% of listings are remote or hybrid<br>
+    <strong>📌 Salary transparency:</strong> ${salCovPct}% of jobs list a salary — the rest can be predicted by the Salary Analysis model<br>
+    <strong>📌 Geographic concentration:</strong> ${topLoc?.[0]||"—"} has the most listings (${topLoc?.[1]||0} jobs), suggesting strong regional demand`;
 }
 
 // ── Clustering ─────────────────────────────────────────────────────────────
@@ -545,10 +697,8 @@ async function loadEvaluation() {
 }
 
 // ── Init ────────────────────────────────────────────────────────────────────
+_loaded["eda"] = true;
 loadEDA();
-loadClusters();
-loadSalary();
-loadEvaluation();
 </script>
 </body>
 </html>

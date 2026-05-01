@@ -83,22 +83,68 @@ def gemini_generate(prompt: str) -> str:
 
 def classify_industry(title: str, snippet: str = "") -> str:
     text = (title + " " + (snippet or "")).lower()
-    if any(k in text for k in ["cybersecurity", "security engineer", "security analyst", "infosec"]):
+    # Order: most specific first to prevent overlap
+    if any(k in text for k in ["cybersecurity","cyber security","security engineer","security analyst",
+                                 "infosec","penetration test","soc analyst","threat intel","vulnerability"]):
         return "Cybersecurity"
-    if any(k in text for k in ["data scientist", "data analyst", "machine learning", "ml engineer", "ai engineer", "data engineer"]):
+    if any(k in text for k in ["data scientist","data analyst","machine learning","ml engineer",
+                                 "ai engineer","data engineer","analytics engineer","business intelligence",
+                                 "bi analyst","nlp engineer","computer vision"]):
         return "Data & Analytics"
-    if any(k in text for k in ["product manager", "product owner", "associate pm"]):
+    if any(k in text for k in ["product manager","product owner","product analyst","product operations"]):
         return "Product Management"
-    if any(k in text for k in ["software engineer", "software developer", "backend", "frontend", "full stack", "devops", "mobile", "web developer"]):
+    if any(k in text for k in ["software engineer","software developer","backend","front-end","frontend",
+                                 "full stack","fullstack","full-stack","web developer","ios developer",
+                                 "android developer","mobile developer","react developer","python developer",
+                                 "java developer","firmware","embedded"]):
         return "Software Engineering"
-    if any(k in text for k in ["designer", "ux", "ui ", "user experience", "graphic design"]):
+    if any(k in text for k in ["devops","site reliability","sre ","cloud engineer","platform engineer",
+                                 "infrastructure engineer","kubernetes","terraform","ci/cd",
+                                 "network engineer","linux admin","systems engineer","reliability engineer"]):
+        return "DevOps & Cloud"
+    if any(k in text for k in ["it support","help desk","helpdesk","technical support",
+                                 "it administrator","sysadmin","sys admin","system administrator",
+                                 "it technician","it specialist","desktop support","service desk",
+                                 "it coordinator","database administrator","dba "]):
+        return "IT Support"
+    if any(k in text for k in ["designer","ux designer","ui designer","ux/ui","user experience",
+                                 "user interface","graphic design","visual design","product design",
+                                 "motion design","brand design"]):
         return "Design"
-    if any(k in text for k in ["financial analyst", "finance", "accounting", "investment", "banking"]):
+    if any(k in text for k in ["financial analyst","finance","accounting","investment banking",
+                                 "investment analyst","banking","hedge fund","audit","tax accountant",
+                                 "actuar","treasury","controller","bookkeep","cpa ","equity analyst"]):
         return "Finance"
-    if any(k in text for k in ["marketing", "seo", "social media", "brand", "copywriter"]):
+    if any(k in text for k in ["marketing","growth hacker","seo","sem ","social media manager",
+                                 "content marketing","digital marketing","email marketing",
+                                 "demand generation","paid media","performance marketing"]):
         return "Marketing"
-    if any(k in text for k in ["sales", "business development", "account executive", "customer success"]):
+    if any(k in text for k in ["technical writer","content writer","copywriter","content strategist",
+                                 "content creator","editor","journalist","documentation"]):
+        return "Content & Writing"
+    if any(k in text for k in ["sales","account executive","business development","account manager",
+                                 "sales representative","sales engineer","solutions engineer",
+                                 "sales associate"]):
         return "Sales"
+    if any(k in text for k in ["customer success","customer support","customer service",
+                                 "client success","client support","customer experience",
+                                 "support specialist","support engineer","technical account"]):
+        return "Customer Success"
+    if any(k in text for k in ["healthcare","medical","clinical","nursing","pharma","biotech",
+                                 "life sciences","lab technician","health informatics","patient care",
+                                 "ehr ","epidemiolog","public health"]):
+        return "Healthcare"
+    if any(k in text for k in ["operations","project manager","program manager","supply chain",
+                                 "logistics","operations coordinator","business analyst",
+                                 "scrum master","agile coach","process improvement","office manager"]):
+        return "Operations"
+    if any(k in text for k in ["human resources","recruiter","talent acquisition","people ops",
+                                 "hr generalist","hr coordinator","hris","compensation","benefits",
+                                 "learning and development","l&d "]):
+        return "HR & Recruiting"
+    if any(k in text for k in ["legal","attorney","paralegal","compliance","regulatory affairs",
+                                 "counsel","contract manager","gdpr","privacy analyst"]):
+        return "Legal & Compliance"
     return "Other"
 
 

@@ -538,38 +538,32 @@ def dashboard():
 
 @app.route("/api/dashboard/salary-prediction")
 def salary_prediction():
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.preprocessing import LabelEncoder
+    from sklearn.linear_model import LinearRegression
     from sklearn.model_selection import cross_val_score
     import numpy as np
 
-    uid  = get_uid()
-    jobs = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
+    uid    = get_uid()
+    jobs   = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
     num_re = re.compile(r'\$([\d,]+)')
 
-    BUCKETS = ["<$50k", "$50–75k", "$75–100k", "$100–130k", "$130k+"]
-
-    def bucket(mid):
-        if mid < 50000:  return "<$50k"
-        if mid < 75000:  return "$50–75k"
-        if mid < 100000: return "$75–100k"
-        if mid < 130000: return "$100–130k"
-        return "$130k+"
-
+    # ── Split labeled (have salary) vs unlabeled ──────────────────────────
     labeled, unlabeled = [], []
     for job in jobs:
         if job.salary:
-            nums = [int(n.replace(",","")) for n in num_re.findall(job.salary)]
+            nums = [int(n.replace(",", "")) for n in num_re.findall(job.salary)]
             if nums:
-                labeled.append({"job": job, "mid": sum(nums)/len(nums), "bucket": bucket(sum(nums)/len(nums))})
+                labeled.append({"job": job, "mid": sum(nums) / len(nums)})
                 continue
         unlabeled.append(job)
 
     if len(labeled) < 6:
         return jsonify({"error": f"Only {len(labeled)} jobs have salary data — need at least 6 to train. Try Refresh Jobs."}), 400
 
-    all_inds = sorted(set(j["job"].industry or "Other" for j in labeled))
-    all_locs = sorted(set(j["job"].location or "Unknown" for j in labeled))
+    # ── Feature names & one-hot vectors ──────────────────────────────────
+    # Features: one binary flag per unique industry + one per unique location
+    all_inds  = sorted(set(j["job"].industry or "Other" for j in labeled))
+    all_locs  = sorted(set(j["job"].location or "Unknown" for j in labeled))
+    feat_names = [f"industry:{i}" for i in all_inds] + [f"location:{l}" for l in all_locs]
 
     def featurize(job):
         return (
@@ -578,37 +572,68 @@ def salary_prediction():
         )
 
     X = [featurize(j["job"]) for j in labeled]
-    y = [j["bucket"] for j in labeled]
+    y = [j["mid"] for j in labeled]          # continuous salary midpoints
 
-    le  = LabelEncoder()
-    y_e = le.fit_transform(y)
-    clf = RandomForestClassifier(n_estimators=100, random_state=42)
-
+    # ── Linear Regression + cross-validation ─────────────────────────────
+    reg = LinearRegression()
     cv  = min(5, len(labeled) // 2)
-    acc = round(float(cross_val_score(clf, X, y_e, cv=cv, scoring="accuracy").mean()), 3) if cv >= 2 else None
-    clf.fit(X, y_e)
+    if cv >= 2:
+        r2  = round(float(cross_val_score(reg, X, y, cv=cv, scoring="r2").mean()), 3)
+        mae = round(float(-cross_val_score(
+            reg, X, y, cv=cv, scoring="neg_mean_absolute_error").mean()))
+    else:
+        r2 = mae = None
 
+    reg.fit(X, y)
+
+    # ── Top salary-driving features (largest positive coefficients) ───────
+    coef_pairs = sorted(zip(feat_names, reg.coef_), key=lambda x: x[1], reverse=True)
+    top_positive = [{"name": n.split(":", 1)[1], "type": n.split(":")[0],
+                     "effect": f"+${int(abs(v)):,}"}
+                    for n, v in coef_pairs[:5] if v > 0]
+    top_negative = [{"name": n.split(":", 1)[1], "type": n.split(":")[0],
+                     "effect": f"-${int(abs(v)):,}"}
+                    for n, v in reversed(coef_pairs) if v < 0][:3]
+
+    # ── Predict salary for unlabeled jobs ─────────────────────────────────
     predictions = []
     for job in unlabeled[:30]:
-        pred = le.inverse_transform(clf.predict([featurize(job)]))[0]
-        predictions.append({"title": job.title, "company": job.company,
-                             "industry": job.industry, "predicted_salary": pred})
+        raw = reg.predict([featurize(job)])[0]
+        predicted = max(25000, int(round(raw / 1000) * 1000))
+        predictions.append({
+            "title":            job.title,
+            "company":          job.company,
+            "industry":         job.industry,
+            "predicted_salary": f"~${predicted:,}",
+        })
 
-    dist = {b: sum(1 for j in labeled if j["bucket"] == b) for b in BUCKETS}
+    # ── Summary stats from labeled set ────────────────────────────────────
+    BUCKETS = ["<$50k", "$50–75k", "$75–100k", "$100–130k", "$130k+"]
+    def bucket(v):
+        if v < 50000:  return "<$50k"
+        if v < 75000:  return "$50–75k"
+        if v < 100000: return "$75–100k"
+        if v < 130000: return "$100–130k"
+        return "$130k+"
+    dist    = {b: sum(1 for j in labeled if bucket(j["mid"]) == b) for b in BUCKETS}
     ind_avg = {}
     for j in labeled:
         ind_avg.setdefault(j["job"].industry or "Other", []).append(j["mid"])
-    ind_avg = {k: round(sum(v)/len(v)) for k, v in ind_avg.items()}
+    ind_avg = {k: round(sum(v) / len(v)) for k, v in ind_avg.items()}
 
     return jsonify({
-        "labeled_count":    len(labeled),
-        "unlabeled_count":  len(unlabeled),
-        "cv_accuracy":      acc,
-        "cv_folds":         cv,
-        "salary_dist":      dist,
-        "industry_avg":     ind_avg,
-        "predictions":      predictions,
-        "feature_count":    len(all_inds) + len(all_locs),
+        "labeled_count":   len(labeled),
+        "unlabeled_count": len(unlabeled),
+        "cv_r2":           r2,
+        "cv_mae":          mae,
+        "cv_folds":        cv,
+        "salary_dist":     dist,
+        "industry_avg":    ind_avg,
+        "predictions":     predictions,
+        "feature_count":   len(feat_names),
+        "intercept":       round(reg.intercept_),
+        "top_positive":    top_positive,
+        "top_negative":    top_negative,
     })
 
 

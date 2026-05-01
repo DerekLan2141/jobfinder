@@ -219,27 +219,36 @@
   <!-- ── Salary Analysis ── -->
   <div id="tab-salary" class="tab-panel">
     <div class="info-box">
-      <strong>Salary Prediction Model:</strong> We train a Random Forest classifier on jobs that
-      have salary data. Features are one-hot encoded industry and location. The model predicts
-      which salary bucket ($50k, $75k, $100k, $130k+) a job falls into. Cross-validation
-      estimates real-world accuracy. Jobs without listed salary get a predicted range.
+      <strong>Linear Regression Salary Model:</strong> We train a Linear Regression model on jobs
+      that have salary data. Each job is represented as a one-hot encoded vector of its industry
+      and location — the regression learns a coefficient (weight) for each feature that captures
+      how much that industry or location shifts the predicted salary up or down from the intercept.
+      The model predicts a continuous dollar value, not a bucket. Evaluated with R² (how much
+      variance is explained) and MAE (average dollar error) via cross-validation.
     </div>
     <div id="salarySection"><div class="loading"><span class="spinner"></span>Training model...</div></div>
     <div id="salaryCharts" style="display:none">
       <div class="charts-grid">
         <div class="chart-card">
-          <h2>Salary Range Distribution</h2>
+          <h2>Salary Distribution (Labeled Jobs)</h2>
+          <p style="font-size:0.73rem;color:var(--gray-500);margin-bottom:0.6rem">Jobs with listed salary grouped into ranges</p>
           <div class="chart-wrap"><canvas id="salRangeChart"></canvas></div>
         </div>
         <div class="chart-card">
-          <h2>Average Salary by Domain</h2>
+          <h2>Average Salary by Industry</h2>
+          <p style="font-size:0.73rem;color:var(--gray-500);margin-bottom:0.6rem">Mean salary midpoint from labeled jobs</p>
           <div class="chart-wrap"><canvas id="salDomainChart"></canvas></div>
         </div>
+        <div class="chart-card chart-wide">
+          <h2>Top Salary-Driving Features</h2>
+          <p style="font-size:0.73rem;color:var(--gray-500);margin-bottom:0.75rem">Regression coefficients — what adds or subtracts from the baseline salary</p>
+          <div id="topFeatures" style="display:flex;gap:2rem;flex-wrap:wrap"></div>
+        </div>
       </div>
-      <h2>Predicted Salaries for Unlisted Jobs</h2>
+      <h2 style="margin-bottom:0.75rem">Predicted Salaries for Unlisted Jobs</h2>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Job Title</th><th>Company</th><th>Industry</th><th>Predicted Range</th></tr></thead>
+          <thead><tr><th>Job Title</th><th>Company</th><th>Industry</th><th>Predicted Salary</th></tr></thead>
           <tbody id="predTable"></tbody>
         </table>
       </div>
@@ -568,17 +577,18 @@ async function loadSalary() {
 
   if (data.error) { el.innerHTML = `<div class="error-msg">${data.error}</div>`; return; }
 
-  const accColor = !data.cv_accuracy ? "badge-indigo" :
-                   data.cv_accuracy > 0.6 ? "badge-green" :
-                   data.cv_accuracy > 0.4 ? "badge-yellow" : "badge-red";
+  const r2 = data.cv_r2;
+  const r2Color = r2 == null ? "badge-indigo" : r2 > 0.5 ? "badge-green" : r2 > 0.2 ? "badge-yellow" : "badge-red";
+  const r2Label = r2 == null ? "" : r2 > 0.5 ? "Strong fit" : r2 > 0.2 ? "Moderate fit" : "Weak fit";
 
   el.innerHTML = `
     <div class="badge-row">
-      <span class="badge badge-indigo">${data.labeled_count} jobs with salary data</span>
-      <span class="badge badge-indigo">${data.unlabeled_count} jobs missing salary</span>
-      <span class="badge badge-indigo">${data.feature_count} features (industry + location)</span>
-      ${data.cv_accuracy!=null
-        ? `<span class="badge ${accColor}">CV Accuracy: ${Math.round(data.cv_accuracy*100)}% (${data.cv_folds}-fold)</span>`:""}
+      <span class="badge badge-indigo">${data.labeled_count} training samples</span>
+      <span class="badge badge-indigo">${data.unlabeled_count} jobs to predict</span>
+      <span class="badge badge-indigo">${data.feature_count} features</span>
+      <span class="badge badge-indigo">Intercept: $${(data.intercept||0).toLocaleString()}</span>
+      ${r2 != null ? `<span class="badge ${r2Color}">R² = ${r2} — ${r2Label} (${data.cv_folds}-fold CV)</span>` : ""}
+      ${data.cv_mae != null ? `<span class="badge badge-indigo">MAE ≈ $${data.cv_mae.toLocaleString()}</span>` : ""}
     </div>`;
 
   document.getElementById("salaryCharts").style.display = "";
@@ -591,10 +601,32 @@ async function loadSalary() {
   mkChart("salDomainChart","bar",iaK,iaK.map(k=>Math.round(ia[k]/1000)),
     {horizontal:true,color:"#059669",tooltip:ctx=>`$${ctx.raw}k avg`});
 
+  // ── Feature coefficients ──
+  const featEl = document.getElementById("topFeatures");
+  const pos = data.top_positive || [];
+  const neg = data.top_negative || [];
+  featEl.innerHTML = `
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--green);margin-bottom:0.5rem">Pushes salary up</div>
+      ${pos.length ? pos.map(f=>`
+        <div style="display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid var(--gray-100);font-size:0.8rem">
+          <span style="color:var(--gray-700)">${f.name} <span style="font-size:0.68rem;color:var(--gray-500)">(${f.type})</span></span>
+          <span style="font-weight:700;color:var(--green)">${f.effect}</span>
+        </div>`).join("") : '<div style="font-size:0.78rem;color:var(--gray-500)">Not enough data</div>'}
+    </div>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--red);margin-bottom:0.5rem">Pushes salary down</div>
+      ${neg.length ? neg.map(f=>`
+        <div style="display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid var(--gray-100);font-size:0.8rem">
+          <span style="color:var(--gray-700)">${f.name} <span style="font-size:0.68rem;color:var(--gray-500)">(${f.type})</span></span>
+          <span style="font-weight:700;color:var(--red)">${f.effect}</span>
+        </div>`).join("") : '<div style="font-size:0.78rem;color:var(--gray-500)">Not enough data</div>'}
+    </div>`;
+
   const tbody = document.getElementById("predTable");
   tbody.innerHTML = data.predictions.map(p=>`
     <tr><td>${p.title}</td><td>${p.company}</td><td>${p.industry||"—"}</td>
-    <td><span class="badge badge-green">${p.predicted_salary}</span></td></tr>`).join("");
+    <td><strong style="color:var(--green-fg)">${p.predicted_salary}</strong></td></tr>`).join("");
 }
 
 // ── Classification ──────────────────────────────────────────────────────────
@@ -631,7 +663,6 @@ async function loadEvaluation() {
   if (stats.error) { el.innerHTML = `<div class="error-msg">${stats.error}</div>`; return; }
 
   const sil  = cluster.silhouette_score;
-  const acc  = sal.cv_accuracy;
   const cov  = stats.salary_pct;
   const avgM = stats.avg_match;
 
@@ -668,16 +699,22 @@ async function loadEvaluation() {
     </div>
 
     <div class="eval-card">
-      <div class="eval-title">💰 Salary Prediction (Random Forest)
-        <span class="badge ${acc>0.6?"badge-green":acc>0.4?"badge-yellow":"badge-red"}">
-          ${acc!=null?`${Math.round(acc*100)}% acc`:"N/A"}</span>
+      ${(()=>{
+        const r2 = sal.cv_r2;
+        const r2Color = r2==null?"badge-indigo":r2>0.5?"badge-green":r2>0.2?"badge-yellow":"badge-red";
+        return `
+      <div class="eval-title">💰 Salary Prediction (Linear Regression)
+        <span class="badge ${r2Color}">R² = ${r2??'N/A'}</span>
       </div>
-      <div class="eval-desc">Random Forest trained on industry + location features to predict salary bucket.
-        Evaluated with ${sal.cv_folds??3}-fold cross-validation. Higher accuracy = more reliable salary estimates.</div>
-      <div class="metric-row"><span class="metric-name">CV Accuracy</span><span class="metric-value">${acc!=null?Math.round(acc*100)+"%":"—"}</span></div>
+      <div class="eval-desc">Linear Regression trained on one-hot industry + location features to predict a
+        continuous salary value. R² measures how much variance is explained (0 = none, 1 = perfect).
+        MAE is the average dollar prediction error. Evaluated with ${sal.cv_folds??3}-fold cross-validation.</div>
+      <div class="metric-row"><span class="metric-name">R² Score (CV)</span><span class="metric-value">${r2??'—'} ${r2!=null?"("+( r2>0.5?"Strong":r2>0.2?"Moderate":"Weak")+" fit)":""}</span></div>
+      <div class="metric-row"><span class="metric-name">MAE (CV)</span><span class="metric-value">${sal.cv_mae!=null?"~$"+sal.cv_mae.toLocaleString():"—"}</span></div>
       <div class="metric-row"><span class="metric-name">Training Samples</span><span class="metric-value">${sal.labeled_count??'—'}</span></div>
       <div class="metric-row"><span class="metric-name">Features</span><span class="metric-value">${sal.feature_count??'—'} (industry + location)</span></div>
-      <div class="metric-row"><span class="metric-name">Predictions Made</span><span class="metric-value">${(sal.predictions||[]).length}</span></div>
+      <div class="metric-row"><span class="metric-name">Predictions Made</span><span class="metric-value">${(sal.predictions||[]).length}</span></div>`;
+      })()}
     </div>
 
     <div class="eval-card">

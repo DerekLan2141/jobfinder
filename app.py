@@ -268,7 +268,7 @@ Return exactly this JSON:
   "experience_level": "entry/junior/mid/senior",
   "education": "highest degree and field of study",
   "summary": "2-3 sentence professional summary of this candidate",
-  "search_queries": ["5-8 Adzuna search queries for this resume. IMPORTANT: all queries must target entry-level / new grad roles. Always include terms like 'entry level', 'junior', 'associate', 'new grad', or 'analyst'. Examples: 'entry level python developer', 'junior data analyst SQL', 'associate software engineer React', 'new grad machine learning engineer'"]
+  "search_queries": ["8-10 concise Adzuna job search queries based on this person's skills and target roles. Use short skill-focused terms — do NOT add experience level words like 'entry level', 'junior', or 'senior' as they reduce results. Good examples: 'python developer', 'data analyst SQL', 'software engineer React', 'machine learning engineer', 'financial analyst Excel', 'product manager SaaS'. Vary the queries to cover different skill combinations and related roles so we get a broad set of listings."]
 }}"""
 
         data = json.loads(gemini_generate(prompt))
@@ -314,7 +314,7 @@ def clear_resume():
     return jsonify({"success": True})
 
 
-def _refresh_jobs(queries: list[str], session_id: str, limit: int = 6, max_pages: int = 2):
+def _refresh_jobs(queries: list[str], session_id: str, limit: int = 10, max_pages: int = 3):
     """Fetch jobs from Adzuna and store new ones scoped to this session."""
     results = fetch_jobs(queries[:limit], results_per_page=50, max_pages=max_pages)
     count = 0
@@ -638,15 +638,27 @@ def salary_prediction():
             "predicted_salary": f"~${predicted:,}",
         })
 
-    # ── Summary stats from labeled set ────────────────────────────────────
-    BUCKETS = ["<$50k", "$50–75k", "$75–100k", "$100–130k", "$130k+"]
-    def bucket(v):
-        if v < 50000:  return "<$50k"
-        if v < 75000:  return "$50–75k"
-        if v < 100000: return "$75–100k"
-        if v < 130000: return "$100–130k"
-        return "$130k+"
-    dist    = {b: sum(1 for j in labeled if bucket(j["mid"]) == b) for b in BUCKETS}
+    # ── Bell curve: fine histogram + fitted normal distribution ──────────
+    import math
+    mids        = [j["mid"] for j in labeled]
+    sal_mean    = float(np.mean(mids))
+    sal_std     = float(np.std(mids)) if len(mids) > 1 else 1.0
+    bin_width   = 10_000
+    lo          = max(0,       int((sal_mean - 3.5 * sal_std) // bin_width) * bin_width)
+    hi          = min(300_000, int((sal_mean + 3.5 * sal_std) // bin_width + 1) * bin_width)
+    bin_edges   = list(range(lo, hi + bin_width, bin_width))
+    bin_centers = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(len(bin_edges) - 1)]
+    bell_labels = [f"${int(c)//1000}k" for c in bin_centers]
+    bell_hist   = [sum(1 for m in mids if bin_edges[i] <= m < bin_edges[i + 1])
+                   for i in range(len(bin_edges) - 1)]
+    bell_curve  = [
+        round((1 / (sal_std * math.sqrt(2 * math.pi)))
+              * math.exp(-0.5 * ((c - sal_mean) / sal_std) ** 2)
+              * len(mids) * bin_width, 4)
+        for c in bin_centers
+    ]
+
+    # ── Industry averages ─────────────────────────────────────────────────
     ind_avg = {}
     for j in labeled:
         ind_avg.setdefault(j["job"].industry or "Other", []).append(j["mid"])
@@ -658,7 +670,11 @@ def salary_prediction():
         "cv_r2":           r2,
         "cv_mae":          mae,
         "cv_folds":        cv,
-        "salary_dist":     dist,
+        "salary_mean":     round(sal_mean),
+        "salary_std":      round(sal_std),
+        "bell_labels":     bell_labels,
+        "bell_hist":       bell_hist,
+        "bell_curve":      bell_curve,
         "industry_avg":    ind_avg,
         "predictions":     predictions,
         "feature_count":   len(feat_names),

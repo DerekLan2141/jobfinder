@@ -258,10 +258,10 @@
   <!-- ── Classification ── -->
   <div id="tab-classification" class="tab-panel">
     <div class="info-box">
-      <strong>Industry Classification:</strong> Each job is classified into one of 16 industry
-      categories using keyword matching on the title and description snippet. This is a
-      rule-based classifier — fast, interpretable, and explainable. Rules are ordered
-      by specificity (e.g. Cybersecurity before Software Engineering to prevent overlap).
+      <strong>Industry Classification:</strong> Each job is classified into one of 20 industry
+      categories using keyword matching on the title and description snippet. Rules are ordered
+      by specificity to prevent overlap. New categories (Engineering, Communications & PR,
+      Research & Policy, Education) significantly reduce the "Other" bucket.
     </div>
     <div class="charts-grid">
       <div class="chart-card">
@@ -272,21 +272,25 @@
         <h2>Classification Rules</h2>
         <div style="font-size:0.75rem;line-height:1.85;color:var(--gray-700);overflow-y:auto;max-height:240px">
           <div><strong style="color:var(--navy)">Cybersecurity</strong> — security engineer · security analyst · infosec · SOC analyst · pentest</div>
-          <div><strong style="color:var(--navy)">Data & Analytics</strong> — data scientist · data analyst · ML engineer · AI engineer · BI analyst</div>
+          <div><strong style="color:var(--navy)">Data & Analytics</strong> — data scientist · data analyst · ML engineer · AI engineer · BI analyst · quant analyst</div>
           <div><strong style="color:var(--navy)">Product Management</strong> — product manager · product owner · product analyst</div>
-          <div><strong style="color:var(--navy)">Software Engineering</strong> — software engineer · backend · frontend · full stack · web developer · mobile</div>
+          <div><strong style="color:var(--navy)">Software Engineering</strong> — software engineer · backend · frontend · full stack · web developer · QA engineer · automation engineer</div>
           <div><strong style="color:var(--navy)">DevOps & Cloud</strong> — devops · SRE · cloud engineer · platform engineer · kubernetes · terraform</div>
           <div><strong style="color:var(--navy)">IT Support</strong> — help desk · IT support · sysadmin · system administrator · desktop support</div>
-          <div><strong style="color:var(--navy)">Design</strong> — UX designer · UI designer · graphic design · visual design · product design</div>
-          <div><strong style="color:var(--navy)">Finance</strong> — financial analyst · accounting · investment · banking · audit · actuarial</div>
-          <div><strong style="color:var(--navy)">Marketing</strong> — digital marketing · SEO · email marketing · demand generation · paid media</div>
-          <div><strong style="color:var(--navy)">Content & Writing</strong> — technical writer · content writer · copywriter · editor · documentation</div>
-          <div><strong style="color:var(--navy)">Sales</strong> — account executive · business development · sales engineer · solutions engineer</div>
+          <div><strong style="color:var(--navy)">Engineering</strong> — mechanical · electrical · civil · aerospace · chemical · industrial · manufacturing engineer</div>
+          <div><strong style="color:var(--navy)">Design</strong> — UX designer · UI designer · graphic design · visual design · animator · multimedia</div>
+          <div><strong style="color:var(--navy)">Finance</strong> — financial analyst · accounting · investment · banking · risk analyst · underwriter</div>
+          <div><strong style="color:var(--navy)">Marketing</strong> — digital marketing · SEO · social media · email marketing · community manager · campaign</div>
+          <div><strong style="color:var(--navy)">Communications & PR</strong> — public relations · communications specialist · media relations · press · corporate comms</div>
+          <div><strong style="color:var(--navy)">Content & Writing</strong> — technical writer · copywriter · editor · grant writer · documentation</div>
+          <div><strong style="color:var(--navy)">Sales</strong> — account executive · business development · sales engineer · retail · e-commerce</div>
           <div><strong style="color:var(--navy)">Customer Success</strong> — customer success · customer support · customer service · client support</div>
-          <div><strong style="color:var(--navy)">Healthcare</strong> — healthcare · clinical · nursing · pharma · biotech · life sciences</div>
-          <div><strong style="color:var(--navy)">Operations</strong> — project manager · program manager · business analyst · supply chain · logistics</div>
-          <div><strong style="color:var(--navy)">HR & Recruiting</strong> — recruiter · talent acquisition · HR generalist · people ops</div>
-          <div><strong style="color:var(--navy)">Legal & Compliance</strong> — attorney · paralegal · compliance · regulatory · contract manager</div>
+          <div><strong style="color:var(--navy)">Healthcare</strong> — healthcare · clinical · nursing · pharma · biotech · therapist · hospital</div>
+          <div><strong style="color:var(--navy)">Research & Policy</strong> — research analyst · research associate · policy analyst · public policy · intelligence analyst</div>
+          <div><strong style="color:var(--navy)">Education</strong> — teacher · tutor · instructor · curriculum · academic advisor · instructional designer</div>
+          <div><strong style="color:var(--navy)">Operations</strong> — project coordinator · event coordinator · administrative assistant · executive assistant · analyst · coordinator</div>
+          <div><strong style="color:var(--navy)">HR & Recruiting</strong> — recruiter · talent acquisition · HR generalist · people ops · onboarding</div>
+          <div><strong style="color:var(--navy)">Legal & Compliance</strong> — attorney · paralegal · compliance · regulatory · intellectual property</div>
           <div><strong style="color:var(--navy)">Other</strong> — fallback for no keyword match</div>
         </div>
       </div>

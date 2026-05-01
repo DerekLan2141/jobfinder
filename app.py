@@ -89,14 +89,16 @@ def classify_industry(title: str, snippet: str = "") -> str:
         return "Cybersecurity"
     if any(k in text for k in ["data scientist","data analyst","machine learning","ml engineer",
                                  "ai engineer","data engineer","analytics engineer","business intelligence",
-                                 "bi analyst","nlp engineer","computer vision"]):
+                                 "bi analyst","nlp engineer","computer vision","quantitative analyst",
+                                 "quant analyst"]):
         return "Data & Analytics"
     if any(k in text for k in ["product manager","product owner","product analyst","product operations"]):
         return "Product Management"
     if any(k in text for k in ["software engineer","software developer","backend","front-end","frontend",
                                  "full stack","fullstack","full-stack","web developer","ios developer",
                                  "android developer","mobile developer","react developer","python developer",
-                                 "java developer","firmware","embedded"]):
+                                 "java developer","firmware","embedded","qa engineer","quality assurance",
+                                 "test engineer","software tester","automation engineer"]):
         return "Software Engineering"
     if any(k in text for k in ["devops","site reliability","sre ","cloud engineer","platform engineer",
                                  "infrastructure engineer","kubernetes","terraform","ci/cd",
@@ -107,43 +109,72 @@ def classify_industry(title: str, snippet: str = "") -> str:
                                  "it technician","it specialist","desktop support","service desk",
                                  "it coordinator","database administrator","dba "]):
         return "IT Support"
+    if any(k in text for k in ["mechanical engineer","electrical engineer","civil engineer",
+                                 "aerospace engineer","chemical engineer","industrial engineer",
+                                 "manufacturing engineer","materials engineer","structural engineer",
+                                 "process engineer","hardware engineer","rfid","robotics engineer",
+                                 "controls engineer","systems integration"]):
+        return "Engineering"
     if any(k in text for k in ["designer","ux designer","ui designer","ux/ui","user experience",
                                  "user interface","graphic design","visual design","product design",
-                                 "motion design","brand design"]):
+                                 "motion design","brand design","illustrator","animator","multimedia"]):
         return "Design"
     if any(k in text for k in ["financial analyst","finance","accounting","investment banking",
                                  "investment analyst","banking","hedge fund","audit","tax accountant",
-                                 "actuar","treasury","controller","bookkeep","cpa ","equity analyst"]):
+                                 "actuar","treasury","controller","bookkeep","cpa ","equity analyst",
+                                 "risk analyst","insurance analyst","underwriter","wealth management"]):
         return "Finance"
-    if any(k in text for k in ["marketing","growth hacker","seo","sem ","social media manager",
+    if any(k in text for k in ["marketing","growth hacker","seo","sem ","social media",
                                  "content marketing","digital marketing","email marketing",
-                                 "demand generation","paid media","performance marketing"]):
+                                 "demand generation","paid media","performance marketing",
+                                 "community manager","brand ambassador","influencer","campaign"]):
         return "Marketing"
+    if any(k in text for k in ["public relations","pr specialist","pr coordinator","communications specialist",
+                                 "communications coordinator","communications manager","media relations",
+                                 "corporate communications","brand communications","press","spokesperson",
+                                 "external affairs"]):
+        return "Communications & PR"
     if any(k in text for k in ["technical writer","content writer","copywriter","content strategist",
-                                 "content creator","editor","journalist","documentation"]):
+                                 "content creator","editor","journalist","documentation","grant writer",
+                                 "proposal writer","scriptwriter"]):
         return "Content & Writing"
     if any(k in text for k in ["sales","account executive","business development","account manager",
                                  "sales representative","sales engineer","solutions engineer",
-                                 "sales associate"]):
+                                 "sales associate","retail","store associate","e-commerce","merchandis"]):
         return "Sales"
     if any(k in text for k in ["customer success","customer support","customer service",
                                  "client success","client support","customer experience",
-                                 "support specialist","support engineer","technical account"]):
+                                 "support specialist","support engineer","technical account","cx analyst"]):
         return "Customer Success"
     if any(k in text for k in ["healthcare","medical","clinical","nursing","pharma","biotech",
                                  "life sciences","lab technician","health informatics","patient care",
-                                 "ehr ","epidemiolog","public health"]):
+                                 "ehr ","epidemiolog","public health","physician","therapist","radiology",
+                                 "dental","hospital","health coach"]):
         return "Healthcare"
+    if any(k in text for k in ["research scientist","research analyst","research associate",
+                                 "research assistant","policy analyst","policy researcher","policy advisor",
+                                 "public policy","policy coordinator","research coordinator",
+                                 "social researcher","economic analyst","intelligence analyst"]):
+        return "Research & Policy"
+    if any(k in text for k in ["teaching","teacher","tutor","instructor","curriculum","academic advisor",
+                                 "education coordinator","instructional designer","learning specialist",
+                                 "professor","lecturer","training coordinator","e-learning","edtech"]):
+        return "Education"
     if any(k in text for k in ["operations","project manager","program manager","supply chain",
-                                 "logistics","operations coordinator","business analyst",
-                                 "scrum master","agile coach","process improvement","office manager"]):
+                                 "logistics","business analyst","scrum master","agile coach",
+                                 "process improvement","office manager","program coordinator",
+                                 "project coordinator","event coordinator","administrative assistant",
+                                 "executive assistant","office administrator","office coordinator",
+                                 "administrative coordinator","operations analyst","management analyst",
+                                 "strategy analyst","general manager","facility","coordinator"]):
         return "Operations"
     if any(k in text for k in ["human resources","recruiter","talent acquisition","people ops",
                                  "hr generalist","hr coordinator","hris","compensation","benefits",
-                                 "learning and development","l&d "]):
+                                 "learning and development","l&d ","onboarding","workforce"]):
         return "HR & Recruiting"
     if any(k in text for k in ["legal","attorney","paralegal","compliance","regulatory affairs",
-                                 "counsel","contract manager","gdpr","privacy analyst"]):
+                                 "counsel","contract manager","gdpr","privacy analyst","corporate law",
+                                 "litigation","intellectual property"]):
         return "Legal & Compliance"
     return "Other"
 

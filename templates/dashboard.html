@@ -549,24 +549,27 @@ async function loadClusters() {
 
   if (data.error) { el.innerHTML = `<div class="error-msg">${data.error}</div>`; return; }
 
-  const silColor = !data.silhouette_score ? "badge-indigo" :
-                   data.silhouette_score > 0.3 ? "badge-green" :
-                   data.silhouette_score > 0.1 ? "badge-yellow" : "badge-red";
+  const singleCluster = data.n_clusters === 1;
+  const sil = data.silhouette_score;
+  const silColor = sil == null ? "badge-indigo"
+                 : sil > 0.3  ? "badge-green"
+                 : sil > 0.1  ? "badge-yellow" : "badge-red";
 
   el.innerHTML = `
+    ${data.note ? `<div class="info-box" style="margin-bottom:1rem">${data.note}</div>` : ""}
     <div class="badge-row">
-      <span class="badge badge-indigo">K = ${data.n_clusters} clusters</span>
+      <span class="badge badge-indigo">${singleCluster ? "1 cluster (all jobs)" : `K = ${data.n_clusters} clusters (auto-selected)`}</span>
       <span class="badge badge-indigo">${data.total_jobs} jobs</span>
-      ${data.silhouette_score != null
-        ? `<span class="badge ${silColor}">Silhouette: ${data.silhouette_score}
-           (${data.silhouette_score>0.3?"Good":data.silhouette_score>0.1?"Fair":"Low"})</span>`:""}
-      <span class="badge badge-indigo">Inertia: ${data.inertia}</span>
+      ${sil != null
+        ? `<span class="badge ${silColor}">Silhouette: ${sil} — ${sil>0.3?"Good":sil>0.1?"Fair":"Low"}</span>` : ""}
+      ${data.inertia != null
+        ? `<span class="badge badge-indigo">Inertia: ${data.inertia}</span>` : ""}
     </div>
     <div class="cluster-grid">
       ${data.clusters.map((c,i)=>`
         <div class="cluster-card" style="border-top-color:${COLORS[i%COLORS.length]}">
           <div class="cluster-title">${c.label}</div>
-          <div class="cluster-count">${c.count} jobs · ${Math.round(c.count/data.total_jobs*100)}% of market</div>
+          <div class="cluster-count">${c.count} jobs · ${Math.round(c.count/data.total_jobs*100)}% of total</div>
           <div class="term-list">${c.top_terms.map(t=>`<span class="term-tag">${t}</span>`).join("")}</div>
           <ul class="sample-jobs">${c.sample_jobs.map(j=>`<li>${j}</li>`).join("")}</ul>
         </div>`).join("")}
@@ -673,14 +676,16 @@ async function loadEvaluation() {
   el.innerHTML = `
     <div class="eval-card">
       <div class="eval-title">🔵 Clustering (K-Means)
-        <span class="badge ${sil>0.3?"badge-green":sil>0.1?"badge-yellow":"badge-red"}">
-          ${sil!=null?`Silhouette: ${sil}`:"N/A"}</span>
+        ${cluster.n_clusters===1
+          ? `<span class="badge badge-indigo">1 cluster</span>`
+          : `<span class="badge ${sil>0.3?"badge-green":sil>0.1?"badge-yellow":"badge-red"}">${sil!=null?`Silhouette: ${sil}`:"N/A"}</span>`}
       </div>
-      <div class="eval-desc">Silhouette score measures how similar a job is to its own cluster vs others.
-        Range −1 to +1. Above 0.3 is good, above 0.5 is strong. Inertia measures total within-cluster variance.</div>
-      <div class="metric-row"><span class="metric-name">Silhouette Score</span><span class="metric-value">${sil??'—'}</span></div>
-      <div class="metric-row"><span class="metric-name">Inertia</span><span class="metric-value">${cluster.inertia??'—'}</span></div>
-      <div class="metric-row"><span class="metric-name">Number of Clusters</span><span class="metric-value">${cluster.n_clusters??'—'}</span></div>
+      <div class="eval-desc">K is auto-selected by maximising silhouette score while ensuring every cluster
+        has at least 12% of jobs. If no valid split exists, all jobs are shown as one cluster.
+        Silhouette range: −1 to +1. Above 0.3 is good.</div>
+      <div class="metric-row"><span class="metric-name">Clusters (K)</span><span class="metric-value">${cluster.n_clusters??'—'}${cluster.n_clusters===1?" (single group)":""}</span></div>
+      <div class="metric-row"><span class="metric-name">Silhouette Score</span><span class="metric-value">${sil!=null?sil:"N/A — single cluster"}</span></div>
+      <div class="metric-row"><span class="metric-name">Inertia</span><span class="metric-value">${cluster.inertia!=null?cluster.inertia:"N/A"}</span></div>
       <div class="metric-row"><span class="metric-name">Jobs Clustered</span><span class="metric-value">${cluster.total_jobs??'—'}</span></div>
     </div>
 

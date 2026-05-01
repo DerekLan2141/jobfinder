@@ -782,54 +782,76 @@ def dashboard_clusters():
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.cluster import KMeans
     from sklearn.metrics import silhouette_score
+    import numpy as np
 
     uid  = get_uid()
     jobs = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
-    if len(jobs) < 8:
-        return jsonify({"error": "Need at least 8 jobs to cluster. Refresh jobs first."}), 400
+    if len(jobs) < 4:
+        return jsonify({"error": "Need at least 4 jobs to cluster. Refresh jobs first."}), 400
 
     texts = [f"{j.title} {j.description_snippet or ''}" for j in jobs]
-
     vectorizer = TfidfVectorizer(max_features=300, stop_words="english", ngram_range=(1, 2))
     X = vectorizer.fit_transform(texts)
-
-    n_clusters = min(8, max(4, len(jobs) // 25))
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-    labels = kmeans.fit_predict(X)
-
-    try:
-        sil = round(float(silhouette_score(X, labels)), 3)
-    except Exception:
-        sil = None
-
     feature_names = vectorizer.get_feature_names_out()
-    clusters = []
-    for i in range(n_clusters):
-        top_idx    = kmeans.cluster_centers_[i].argsort()[-8:][::-1]
-        top_terms  = [feature_names[idx] for idx in top_idx]
-        members    = [jobs[j] for j in range(len(jobs)) if labels[j] == i]
+
+    # Each cluster must have at least this many jobs — prevents one giant + tiny slivers
+    min_size = max(3, len(jobs) // 8)
+    max_k    = min(6, len(jobs) // min_size)
+
+    best_k, best_km, best_labels, best_sil = 1, None, None, -1.0
+
+    for k in range(2, max_k + 1):
+        km   = KMeans(n_clusters=k, random_state=42, n_init=10)
+        lbls = km.fit_predict(X)
+        if min(int(np.sum(lbls == i)) for i in range(k)) < min_size:
+            continue          # skip — at least one cluster is too small
+        try:
+            s = float(silhouette_score(X, lbls))
+        except Exception:
+            continue
+        if s > best_sil:
+            best_sil, best_k, best_km, best_labels = s, k, km, lbls
+
+    def _build_cluster(members, center_vec):
+        top_idx   = center_vec.argsort()[-8:][::-1]
+        top_terms = [feature_names[idx] for idx in top_idx]
         industries = {}
         for m in members:
             ind = m.industry or "Other"
             industries[ind] = industries.get(ind, 0) + 1
-        sample = list({m.title for m in members})[:6]
-        clusters.append({
-            "id":         i,
+        return {
             "label":      " · ".join(top_terms[:3]).title(),
             "top_terms":  top_terms,
             "count":      len(members),
             "industries": industries,
-            "sample_jobs": sample,
+            "sample_jobs": list({m.title for m in members})[:6],
+        }
+
+    if best_k == 1:
+        # No valid multi-cluster split — show everything as one group
+        centroid = np.asarray(X.mean(axis=0)).flatten()
+        clusters = [_build_cluster(jobs, centroid)]
+        return jsonify({
+            "clusters":         clusters,
+            "n_clusters":       1,
+            "total_jobs":       len(jobs),
+            "silhouette_score": None,
+            "inertia":          None,
+            "note":             "Jobs are too similar to split into meaningful sub-groups — showing as one cluster.",
         })
 
+    clusters = []
+    for i in range(best_k):
+        members = [jobs[j] for j in range(len(jobs)) if best_labels[j] == i]
+        clusters.append(_build_cluster(members, best_km.cluster_centers_[i]))
     clusters.sort(key=lambda x: x["count"], reverse=True)
 
     return jsonify({
         "clusters":         clusters,
-        "n_clusters":       n_clusters,
+        "n_clusters":       best_k,
         "total_jobs":       len(jobs),
-        "silhouette_score": sil,
-        "inertia":          round(float(kmeans.inertia_), 1),
+        "silhouette_score": round(best_sil, 3),
+        "inertia":          round(float(best_km.inertia_), 1),
     })
 
 

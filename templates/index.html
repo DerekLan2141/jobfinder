@@ -119,15 +119,20 @@
   </div>
 
   <div id="resumeModal" class="modal-overlay hidden">
-    <div class="modal">
+    <div class="modal modal-pdf">
       <button class="modal-close" id="resumeModalClose">&#10005;</button>
-      <div class="modal-head">
-        <h2>Your Resume</h2>
-        <span class="modal-company">Extracted text from your PDF</span>
+      <div class="modal-head pdf-modal-head">
+        <div>
+          <h2>Your Resume</h2>
+          <span id="pdfPageCount" class="modal-company"></span>
+        </div>
+        <div class="zoom-controls">
+          <button class="zoom-btn" id="zoomOut" title="Zoom out">&#8722;</button>
+          <span class="zoom-level" id="zoomLevel">100%</span>
+          <button class="zoom-btn" id="zoomIn" title="Zoom in">&#43;</button>
+        </div>
       </div>
-      <div class="modal-section-title">Resume Content</div>
-      <div id="resumeModalText" class="modal-desc resume-viewer"></div>
-      <div class="modal-footer"></div>
+      <div id="pdfContainer" class="pdf-container"></div>
     </div>
   </div>
 
@@ -146,6 +151,8 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
   <script src="/static/app.js"></script>
 </body>
 </html>

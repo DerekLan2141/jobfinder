@@ -6,6 +6,9 @@ let searchQuery       = "";
 let locationFilters   = [];
 let industryFilter    = "";
 let availableLocations = [];
+let resumeFile        = null;
+let pdfDoc            = null;
+let pdfZoom           = 1.0;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function debounce(fn, ms) {
@@ -274,35 +277,45 @@ document.getElementById("cvModal").addEventListener("click", e => {
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") { closeModal(); closeCVModal(); closeResumeModal(); } });
 
-// ── Resume viewer modal ────────────────────────────────────────────────────
+// ── PDF viewer ─────────────────────────────────────────────────────────────
+async function renderPDFPages() {
+  const container = document.getElementById("pdfContainer");
+  container.innerHTML = '<div style="text-align:center;padding:3rem;color:#aaa;font-size:0.85rem">Rendering…</div>';
+  if (!pdfDoc) return;
+  container.innerHTML = "";
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    const page     = await pdfDoc.getPage(i);
+    const viewport = page.getViewport({ scale: pdfZoom * 1.5 });
+    const canvas   = document.createElement("canvas");
+    canvas.width   = viewport.width;
+    canvas.height  = viewport.height;
+    container.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+  }
+}
+
 async function openResumeModal() {
-  const modal = document.getElementById("resumeModal");
-  const el    = document.getElementById("resumeModalText");
-  el.innerHTML = "<em style='color:#6b7280'>Loading...</em>";
+  const modal     = document.getElementById("resumeModal");
+  const container = document.getElementById("pdfContainer");
   modal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+
+  if (!resumeFile) {
+    container.innerHTML = '<div style="text-align:center;padding:3rem;color:#aaa;font-size:0.85rem">No PDF in memory — please re-upload your resume.</div>';
+    return;
+  }
+
+  if (pdfDoc) { await renderPDFPages(); return; }
+
+  container.innerHTML = '<div style="text-align:center;padding:3rem;color:#aaa;font-size:0.85rem">Loading PDF…</div>';
   try {
-    const res  = await fetch("/api/resume/text");
-    const data = await res.json();
-    if (data.error) { el.innerHTML = `<em style='color:#dc2626'>${data.error}</em>`; return; }
-    // Format the raw text into readable sections
-    const lines = (data.text || "").split("\n").filter(l => l.trim());
-    let html = "";
-    for (const line of lines) {
-      const t = line.trim();
-      if (!t) continue;
-      // Detect section headers: short all-caps or ends with colon
-      if ((t === t.toUpperCase() && t.length < 60 && t.length > 2) || /^[A-Z][A-Z\s&]{3,}:?\s*$/.test(t)) {
-        html += `<div class="resume-section-header">${t}</div>`;
-      } else if (t.startsWith("•") || t.startsWith("-") || t.startsWith("·")) {
-        html += `<div class="resume-bullet">${t}</div>`;
-      } else {
-        html += `<div class="resume-line">${t}</div>`;
-      }
-    }
-    el.innerHTML = html || "<em>No content extracted.</em>";
-  } catch {
-    el.innerHTML = "<em style='color:#dc2626'>Failed to load resume.</em>";
+    const buf = await resumeFile.arrayBuffer();
+    pdfDoc    = await pdfjsLib.getDocument({ data: buf }).promise;
+    document.getElementById("pdfPageCount").textContent =
+      `${pdfDoc.numPages} page${pdfDoc.numPages !== 1 ? "s" : ""}`;
+    await renderPDFPages();
+  } catch (err) {
+    container.innerHTML = `<div style="text-align:center;padding:3rem;color:#fca5a5;font-size:0.85rem">Failed to render: ${err.message}</div>`;
   }
 }
 
@@ -310,6 +323,18 @@ function closeResumeModal() {
   document.getElementById("resumeModal").classList.add("hidden");
   document.body.style.overflow = "";
 }
+
+document.getElementById("zoomIn").addEventListener("click", async () => {
+  pdfZoom = Math.min(+(pdfZoom + 0.25).toFixed(2), 3.0);
+  document.getElementById("zoomLevel").textContent = Math.round(pdfZoom * 100) + "%";
+  await renderPDFPages();
+});
+
+document.getElementById("zoomOut").addEventListener("click", async () => {
+  pdfZoom = Math.max(+(pdfZoom - 0.25).toFixed(2), 0.25);
+  document.getElementById("zoomLevel").textContent = Math.round(pdfZoom * 100) + "%";
+  await renderPDFPages();
+});
 
 document.getElementById("resumeModalClose").addEventListener("click", closeResumeModal);
 document.getElementById("resumeModal").addEventListener("click", e => {
@@ -413,6 +438,9 @@ document.getElementById("resumeInput").addEventListener("change", async e => {
   const file = e.target.files[0];
   if (!file) return;
 
+  resumeFile = file;
+  pdfDoc = null;
+
   const label = document.getElementById("resumeLabel");
   label.textContent = "Analyzing...";
   showStatus("Analyzing resume and finding matching jobs — this may take a moment...", "loading");
@@ -444,6 +472,8 @@ document.getElementById("resumeInput").addEventListener("change", async e => {
 document.getElementById("resumeClear").addEventListener("click", async () => {
   await fetch("/api/resume", { method: "DELETE" });
   profile = null;
+  resumeFile = null;
+  pdfDoc = null;
   locationFilters = [];
   industryFilter  = "";
   searchQuery     = "";

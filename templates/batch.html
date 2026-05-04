@@ -308,31 +308,150 @@ function renderFileList() {
 runBtn.addEventListener("click", async () => {
   if (!selectedFiles.length) return;
   uploadError.innerHTML = "";
+  lastResults = [];
+
+  // Show results section early so cards appear as they come in
+  document.getElementById("resultsSection").style.display = "";
+  document.getElementById("accuracySection").style.display = "none";
+  document.getElementById("compareGrid").innerHTML = "";
+  document.getElementById("compareTable").innerHTML = "";
+
   runBtn.disabled = true;
-  runBtn.innerHTML = '<span class="spinner"></span> Analyzing...';
+  const total = selectedFiles.length;
 
-  const fd = new FormData();
-  selectedFiles.forEach(f => fd.append("resumes", f));
+  for (let i = 0; i < total; i++) {
+    const f = selectedFiles[i];
+    runBtn.innerHTML = `<span class="spinner"></span> Processing ${i + 1} of ${total}: ${f.name}`;
 
-  try {
-    const res  = await fetch("/api/batch/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.error) { uploadError.innerHTML = `<div class="error-msg">${data.error}</div>`; return; }
+    // Add a placeholder card while processing
+    const placeholderId = `placeholder-${i}`;
+    const placeholder = document.createElement("div");
+    placeholder.id = placeholderId;
+    placeholder.className = "resume-card";
+    placeholder.innerHTML = `
+      <div class="rc-header"><span class="rc-filename">${f.name}</span></div>
+      <div class="rc-body" style="display:flex;align-items:center;gap:0.6rem;color:var(--gray-500);font-size:0.82rem">
+        <span class="spinner" style="border-top-color:var(--indigo);border-color:var(--gray-300)"></span>
+        Analyzing with Gemini...
+      </div>`;
+    document.getElementById("compareGrid").appendChild(placeholder);
 
-    lastResults = data.results || [];
-    renderResults(lastResults);
-    renderAccuracy(lastResults);
+    const fd = new FormData();
+    fd.append("resume", f);
 
-    document.getElementById("resultsSection").style.display = "";
+    let result;
+    try {
+      const res = await fetch("/api/batch/single", { method: "POST", body: fd });
+      const data = await res.json();
+      result = data.error ? { filename: f.name, error: data.error } : { filename: f.name, ...data };
+    } catch (e) {
+      result = { filename: f.name, error: e.message };
+    }
+
+    lastResults.push(result);
+
+    // Replace placeholder with real card
+    const realCard = document.createElement("div");
+    realCard.innerHTML = buildCard(result);
+    const card = realCard.firstElementChild;
+    document.getElementById(placeholderId).replaceWith(card);
+
+    // Update count badge and comparison table row
+    updateCountBadge();
+    appendTableRow(result);
+  }
+
+  // All done — render accuracy section
+  renderAccuracy(lastResults);
+  if (lastResults.some(r => !r.error && r.match_metrics)) {
     document.getElementById("accuracySection").style.display = "";
     document.getElementById("accuracySection").scrollIntoView({ behavior:"smooth", block:"start" });
-  } catch (e) {
-    uploadError.innerHTML = `<div class="error-msg">Request failed: ${e.message}</div>`;
-  } finally {
-    runBtn.disabled = false;
-    runBtn.innerHTML = "Analyze &amp; Score Resumes";
   }
+
+  runBtn.disabled = false;
+  runBtn.innerHTML = "Analyze &amp; Score Resumes";
 });
+
+function updateCountBadge() {
+  const ok  = lastResults.filter(r => !r.error).length;
+  const err = lastResults.filter(r =>  r.error).length;
+  document.getElementById("resultCount").textContent =
+    `${ok} parsed${err ? ` · ${err} failed` : ""}`;
+}
+
+function appendTableRow(r) {
+  if (r.error) return;
+  const tbody = document.getElementById("compareTable");
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td><strong>${r.filename}</strong></td>
+    <td><span class="exp-badge exp-${(r.experience_level||'entry').toLowerCase()}">${r.experience_level||'?'}</span></td>
+    <td>${r.years_of_experience||'—'}</td>
+    <td>${r.education||'—'}</td>
+    <td style="text-align:center;font-weight:700;color:var(--indigo)">${(r.skills||[]).length}</td>
+    <td>${(r.top_industries||[]).join(', ')||'—'}</td>`;
+  tbody.appendChild(tr);
+}
+
+function buildCard(r) {
+  if (r.error) return `
+    <div class="resume-card has-error">
+      <div class="rc-header"><span class="rc-filename">${r.filename}</span></div>
+      <div class="rc-body"><div style="color:#991b1b;font-size:0.82rem">⚠ ${r.error}</div></div>
+    </div>`;
+
+  const m = r.match_metrics;
+  const scoreSection = m ? `
+    <div class="rc-section" style="border-top:1px solid var(--gray-100);padding-top:0.65rem;margin-top:0.65rem">
+      <div class="rc-label">Matching vs Job Pool (${m.job_count} jobs)</div>
+      <div class="score-row"><span class="score-name">Avg Match Score</span>
+        <span class="score-val ${m.avg_match>=90?'score-high':m.avg_match>=85?'score-mid':'score-low'}">${m.avg_match}%</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${((m.avg_match-80)/19*100).toFixed(0)}%;background:var(--indigo)"></div></div>
+      <div class="score-row" style="margin-top:0.4rem"><span class="score-name">Avg Hire Probability</span>
+        <span class="score-val ${m.avg_hire_prob>=50?'score-high':m.avg_hire_prob>=35?'score-mid':'score-low'}">${m.avg_hire_prob}%</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${m.avg_hire_prob}%;background:${m.avg_hire_prob>=50?'#059669':m.avg_hire_prob>=35?'#d97706':'#dc2626'}"></div></div>
+      <div class="score-row" style="margin-top:0.4rem"><span class="score-name">Best Match</span>
+        <span class="score-val score-high">${m.max_match}%</span></div>
+      <div class="score-row"><span class="score-name">Score Std Dev</span>
+        <span class="score-val">${m.score_std} <span style="font-size:0.67rem;font-weight:400;color:var(--gray-500)">(${m.score_std>=3?'good discrimination':m.score_std>=1.5?'moderate':'low'})</span></span></div>
+      <div class="score-row"><span class="score-name">High Match Jobs (≥90%)</span>
+        <span class="score-val">${m.high_match_pct}%</span></div>
+      ${m.top_jobs && m.top_jobs.length ? `
+        <div class="rc-label" style="margin-top:0.65rem">Top Matching Jobs</div>
+        ${m.top_jobs.map(j=>`<div class="score-row">
+          <span class="score-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.title} <span style="color:var(--gray-400)">${j.company}</span></span>
+          <span class="score-val ${j.match>=90?'score-high':j.match>=85?'score-mid':'score-low'}" style="margin-left:0.5rem">${j.match}%</span>
+        </div>`).join("")}` : ""}
+    </div>` : `<div class="rc-section" style="font-size:0.75rem;color:var(--gray-500);margin-top:0.5rem">No job pool — upload a resume in the main app first.</div>`;
+
+  return `
+    <div class="resume-card">
+      <div class="rc-header">
+        <span class="rc-filename">${r.filename}</span>
+        <span class="rc-exp">${r.experience_level||'?'}</span>
+      </div>
+      <div class="rc-body">
+        <div class="rc-summary">${r.summary||'—'}</div>
+        <div class="rc-meta"><strong>Education:</strong> ${r.education||'—'}</div>
+        <div class="rc-meta"><strong>Est. Experience:</strong> ${r.years_of_experience||'—'} yrs</div>
+        <div class="rc-meta"><strong>Industries:</strong> ${(r.top_industries||[]).join(', ')||'—'}</div>
+        <div class="rc-section">
+          <div class="rc-label">Skills (${(r.skills||[]).length})</div>
+          <div class="tag-wrap">${(r.skills||[]).slice(0,12).map(s=>`<span class="tag">${s}</span>`).join('')}
+            ${(r.skills||[]).length>12?`<span class="tag" style="color:var(--gray-500)">+${(r.skills||[]).length-12} more</span>`:''}</div>
+        </div>
+        <div class="rc-section">
+          <div class="rc-label">Strengths</div>
+          <div class="tag-wrap">${(r.strengths||[]).map(s=>`<span class="tag tag-green">✓ ${s}</span>`).join('')}</div>
+        </div>
+        <div class="rc-section">
+          <div class="rc-label">Gaps</div>
+          <div class="tag-wrap">${(r.gaps||[]).map(g=>`<span class="tag tag-red">✗ ${g}</span>`).join('')}</div>
+        </div>
+        ${scoreSection}
+      </div>
+    </div>`;
+}
 
 document.getElementById("downloadJsonBtn").addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(lastResults, null, 2)], { type:"application/json" });
@@ -456,83 +575,6 @@ function renderAccuracy(results) {
     }).join("");
 }
 
-// ── Resume Profile Cards ──────────────────────────────────────────────────────
-function renderResults(results) {
-  const ok  = results.filter(r => !r.error);
-  const err = results.filter(r => r.error);
-  document.getElementById("resultCount").textContent =
-    `${ok.length} parsed${err.length ? ` · ${err.length} failed` : ""}`;
-
-  document.getElementById("compareGrid").innerHTML = results.map(r => {
-    if (r.error) return `
-      <div class="resume-card has-error">
-        <div class="rc-header"><span class="rc-filename">${r.filename}</span></div>
-        <div class="rc-body"><div style="color:#991b1b;font-size:0.82rem">⚠ ${r.error}</div></div>
-      </div>`;
-
-    const m = r.match_metrics;
-    const scoreSection = m ? `
-      <div class="rc-section" style="border-top:1px solid var(--gray-100);padding-top:0.65rem;margin-top:0.65rem">
-        <div class="rc-label">Matching vs Job Pool (${m.job_count} jobs)</div>
-        <div class="score-row"><span class="score-name">Avg Match Score</span>
-          <span class="score-val ${m.avg_match>=90?'score-high':m.avg_match>=85?'score-mid':'score-low'}">${m.avg_match}%</span></div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${((m.avg_match-80)/19*100).toFixed(0)}%;background:var(--indigo)"></div></div>
-        <div class="score-row" style="margin-top:0.4rem"><span class="score-name">Avg Hire Probability</span>
-          <span class="score-val ${m.avg_hire_prob>=50?'score-high':m.avg_hire_prob>=35?'score-mid':'score-low'}">${m.avg_hire_prob}%</span></div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${m.avg_hire_prob}%;background:${m.avg_hire_prob>=50?'#059669':m.avg_hire_prob>=35?'#d97706':'#dc2626'}"></div></div>
-        <div class="score-row" style="margin-top:0.4rem"><span class="score-name">Best Match</span>
-          <span class="score-val score-high">${m.max_match}%</span></div>
-        <div class="score-row"><span class="score-name">Score Std Dev</span>
-          <span class="score-val">${m.score_std} <span style="font-size:0.67rem;font-weight:400;color:var(--gray-500)">(${m.score_std>=3?'good discrimination':m.score_std>=1.5?'moderate':'low'})</span></span></div>
-        <div class="score-row"><span class="score-name">High Match Jobs (≥90%)</span>
-          <span class="score-val">${m.high_match_pct}%</span></div>
-        ${m.top_jobs && m.top_jobs.length ? `
-          <div class="rc-label" style="margin-top:0.65rem">Top Matching Jobs</div>
-          ${m.top_jobs.map(j=>`<div class="score-row">
-            <span class="score-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.title} <span style="color:var(--gray-400)">${j.company}</span></span>
-            <span class="score-val ${j.match>=90?'score-high':j.match>=85?'score-mid':'score-low'}" style="margin-left:0.5rem">${j.match}%</span>
-          </div>`).join("")}` : ""}
-      </div>` : `<div class="rc-section" style="font-size:0.75rem;color:var(--gray-500);margin-top:0.5rem">No job pool — upload a resume in the main app first.</div>`;
-
-    return `
-      <div class="resume-card">
-        <div class="rc-header">
-          <span class="rc-filename">${r.filename}</span>
-          <span class="rc-exp">${r.experience_level||'?'}</span>
-        </div>
-        <div class="rc-body">
-          <div class="rc-summary">${r.summary||'—'}</div>
-          <div class="rc-meta"><strong>Education:</strong> ${r.education||'—'}</div>
-          <div class="rc-meta"><strong>Est. Experience:</strong> ${r.years_of_experience||'—'} yrs</div>
-          <div class="rc-meta"><strong>Industries:</strong> ${(r.top_industries||[]).join(', ')||'—'}</div>
-          <div class="rc-section">
-            <div class="rc-label">Skills (${(r.skills||[]).length})</div>
-            <div class="tag-wrap">${(r.skills||[]).slice(0,12).map(s=>`<span class="tag">${s}</span>`).join('')}
-              ${(r.skills||[]).length>12?`<span class="tag" style="color:var(--gray-500)">+${(r.skills||[]).length-12} more</span>`:''}</div>
-          </div>
-          <div class="rc-section">
-            <div class="rc-label">Strengths</div>
-            <div class="tag-wrap">${(r.strengths||[]).map(s=>`<span class="tag tag-green">✓ ${s}</span>`).join('')}</div>
-          </div>
-          <div class="rc-section">
-            <div class="rc-label">Gaps</div>
-            <div class="tag-wrap">${(r.gaps||[]).map(g=>`<span class="tag tag-red">✗ ${g}</span>`).join('')}</div>
-          </div>
-          ${scoreSection}
-        </div>
-      </div>`;
-  }).join("");
-
-  document.getElementById("compareTable").innerHTML = results.filter(r=>!r.error).map(r=>`
-    <tr>
-      <td><strong>${r.filename}</strong></td>
-      <td><span class="exp-badge exp-${(r.experience_level||'entry').toLowerCase()}">${r.experience_level||'?'}</span></td>
-      <td>${r.years_of_experience||'—'}</td>
-      <td>${r.education||'—'}</td>
-      <td style="text-align:center;font-weight:700;color:var(--indigo)">${(r.skills||[]).length}</td>
-      <td>${(r.top_industries||[]).join(', ')||'—'}</td>
-    </tr>`).join("");
-}
 
 function mkChart(id, type, labels, values, opts={}) {
   if (charts[id]) charts[id].destroy();

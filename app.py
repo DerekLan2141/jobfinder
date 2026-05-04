@@ -1091,6 +1091,83 @@ Return exactly:
     return jsonify({"results": results, "count": len(results)})
 
 
+@app.route("/api/batch/single", methods=["POST"])
+def batch_single():
+    """Process one PDF at a time — called repeatedly by the batch page."""
+    import pypdf, io as _io
+    if not os.getenv("GEMINI_API_KEY"):
+        return jsonify({"error": "GEMINI_API_KEY not configured"}), 500
+
+    file = request.files.get("resume")
+    if not file or not file.filename:
+        return jsonify({"error": "No file"}), 400
+
+    fname = file.filename
+    if not fname.lower().endswith(".pdf"):
+        return jsonify({"error": "Not a PDF"}), 400
+
+    try:
+        reader = pypdf.PdfReader(_io.BytesIO(file.read()))
+        text   = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+        if not text:
+            return jsonify({"error": "Could not extract text from PDF"}), 400
+
+        prompt = f"""Analyze this resume for a job-market comparison. Return ONLY valid JSON.
+
+Resume:
+{text[:6000]}
+
+Return exactly:
+{{
+  "skills": ["all technical skills, tools, languages, frameworks listed"],
+  "job_titles": ["held or targeted job titles"],
+  "experience_level": "entry/junior/mid/senior",
+  "education": "highest degree and field",
+  "years_of_experience": "estimated total years (number or range, e.g. '2-3')",
+  "summary": "1-2 sentence professional summary",
+  "top_industries": ["top 2-3 industries this person fits"],
+  "strengths": ["top 3 standout strengths from the resume"],
+  "gaps": ["top 2-3 skill gaps or weaknesses relative to tech/professional job market"]
+}}"""
+
+        data             = json.loads(gemini_generate(prompt, temperature=0.3))
+        data["filename"] = fname
+
+        uid  = get_uid()
+        pool = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
+        if pool:
+            import numpy as _np
+            r_skills = data.get("skills", [])
+            r_titles = data.get("job_titles", [])
+            r_exp    = data.get("experience_level", "")
+            m_scores = [calc_match_score(j, r_skills, r_titles) for j in pool]
+            h_scores = [calc_hire_probability(j, r_skills, r_exp)  for j in pool]
+            top_jobs = sorted(zip(pool, m_scores, h_scores), key=lambda x: x[1], reverse=True)[:5]
+            data["match_metrics"] = {
+                "job_count":      len(pool),
+                "avg_match":      round(float(_np.mean(m_scores)), 1),
+                "max_match":      int(max(m_scores)),
+                "min_match":      int(min(m_scores)),
+                "score_std":      round(float(_np.std(m_scores)), 2),
+                "avg_hire_prob":  round(float(_np.mean(h_scores)), 1),
+                "high_match_pct": round(sum(1 for s in m_scores if s >= 90) / len(m_scores) * 100, 1),
+                "score_dist": {
+                    "80-84": sum(1 for s in m_scores if 80 <= s < 85),
+                    "85-89": sum(1 for s in m_scores if 85 <= s < 90),
+                    "90-94": sum(1 for s in m_scores if 90 <= s < 95),
+                    "95-99": sum(1 for s in m_scores if s >= 95),
+                },
+                "top_jobs": [
+                    {"title": j.title, "company": j.company,
+                     "industry": j.industry or "—", "match": ms, "hire_prob": hp}
+                    for j, ms, hp in top_jobs
+                ],
+            }
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/admin/report.csv")
 def admin_report():
     """

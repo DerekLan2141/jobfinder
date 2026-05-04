@@ -759,8 +759,8 @@ def _sal_role(title: str) -> str:
 
 @app.route("/api/dashboard/salary-prediction")
 def salary_prediction():
-    from sklearn.linear_model import Ridge
-    from sklearn.model_selection import cross_val_score
+    from sklearn.linear_model import RidgeCV, Ridge
+    from sklearn.model_selection import cross_val_score, ShuffleSplit
     import numpy as np
 
     uid    = get_uid()
@@ -779,34 +779,53 @@ def salary_prediction():
     if len(labeled) < 6:
         return jsonify({"error": f"Only {len(labeled)} jobs have salary data — need at least 6 to train. Try Refresh Jobs."}), 400
 
-    # ── Features: seniority + role type + remote only ─────────────────────
-    # Keeping features minimal relative to sample size prevents overfitting.
-    # Seniority (0/1/2) is the dominant salary driver; role captures pay bands.
-    all_roles  = ["engineer","scientist","manager","analyst","designer","consultant","other"]
+    # ── Features: seniority + role + remote + industry + location tier ────
+    # Industry and location are the strongest salary drivers after seniority.
+    all_roles = ["engineer","scientist","manager","analyst","designer","consultant","other"]
+    all_inds  = ["Technology","Finance","Healthcare","Education","Marketing",
+                 "Consulting","Real Estate","Supply Chain","Media & Entertainment","Other"]
+    _high_pay = {"CA","NY","WA","MA","DC","IL","CO","TX","GA","NJ",
+                 "California","New York","Washington","Massachusetts","Colorado",
+                 "Illinois","Texas","Georgia","New Jersey"}
+
+    def _loc_tier(loc: str) -> int:
+        return 2 if (loc or "").strip() in _high_pay else 1
+
     feat_names = (
-        ["numeric:seniority", "numeric:is_remote"] +
-        [f"role:{r}" for r in all_roles]
+        ["numeric:seniority", "numeric:is_remote", "numeric:location_tier"] +
+        [f"role:{r}" for r in all_roles] +
+        [f"industry:{i}" for i in all_inds]
     )
 
     def featurize(job):
         text = (job.description_snippet or "") + " " + (job.location or "")
+        ind  = job.industry or "Other"
         return (
-            [_sal_seniority(job.title), int("remote" in text.lower())] +
-            [1 if _sal_role(job.title) == r else 0 for r in all_roles]
+            [_sal_seniority(job.title),
+             int("remote" in text.lower()),
+             _loc_tier(job.location)] +
+            [1 if _sal_role(job.title) == r else 0 for r in all_roles] +
+            [1 if ind == i else 0 for i in all_inds]
         )
 
     X = np.array([featurize(j["job"]) for j in labeled], dtype=float)
     y = np.array([j["mid"] for j in labeled], dtype=float)
 
-    # ── Ridge with fixed alpha + conservative CV ──────────────────────────
-    reg     = Ridge(alpha=10.0)
-    n_folds = min(3, len(labeled) // 3)
+    # ── Two-step: RidgeCV picks alpha, then evaluate on ShuffleSplit ──────
+    # ShuffleSplit with 10 iterations gives stable R² vs k-fold on small n.
+    rcv = RidgeCV(alphas=[0.1, 1.0, 5.0, 10.0, 50.0])
+    rcv.fit(X, y)
+    reg = Ridge(alpha=float(rcv.alpha_))
+
     r2 = mae = None
-    if n_folds >= 2 and np.std(y) > 0:
+    n_folds = 0
+    if len(labeled) >= 8 and np.std(y) > 0:
         try:
-            r2  = round(float(cross_val_score(reg, X, y, cv=n_folds, scoring="r2").mean()), 3)
-            mae = round(float(-cross_val_score(
-                reg, X, y, cv=n_folds, scoring="neg_mean_absolute_error").mean()))
+            ss     = ShuffleSplit(n_splits=10, test_size=0.25, random_state=42)
+            r2     = round(float(cross_val_score(reg, X, y, cv=ss, scoring="r2").mean()), 3)
+            mae    = round(float(-cross_val_score(
+                reg, X, y, cv=ss, scoring="neg_mean_absolute_error").mean()))
+            n_folds = 10
         except Exception:
             pass
 
@@ -1068,59 +1087,84 @@ def dashboard_clusters():
         if s > best_sil:
             best_sil, best_k, best_km, best_labels = s, k, km, lbls
 
-    def _cluster_label(members):
-        """Generate a human-readable cluster name from dominant characteristics."""
-        from collections import Counter
+    from collections import Counter
+
+    def _base_label(members):
         ind_top = Counter(m.industry or "Other" for m in members).most_common(1)[0][0]
         seniorities = [_sal_seniority(m.title) for m in members]
         avg_sen = sum(seniorities) / len(seniorities)
         level = "Senior" if avg_sen >= 1.6 else ("Junior" if avg_sen <= 0.5 else "Mid-Level")
-        roles = Counter(_sal_role(m.title) for m in members).most_common(1)[0][0].title()
-        return f"{level} {roles} — {ind_top}"
+        role  = Counter(_sal_role(m.title) for m in members).most_common(1)[0][0].title()
+        return f"{level} {role} — {ind_top}"
 
-    def _build_cluster(members):
-        from collections import Counter
+    def _build_cluster(members, label, top_terms):
         nums_list = []
         for m in members:
             ns = [int(n.replace(",","")) for n in num_re.findall(m.salary or "")]
             if ns: nums_list.append(sum(ns)/len(ns))
-        avg_sal  = round(sum(nums_list)/len(nums_list)) if nums_list else None
+        avg_sal   = round(sum(nums_list)/len(nums_list)) if nums_list else None
         avg_match = round(sum(calc_match_score(m, p_skills, p_titles)
                               for m in members) / len(members)) if p_skills else None
         industries = dict(Counter(m.industry or "Other" for m in members).most_common(5))
         locations  = dict(Counter(m.location or "Unknown" for m in members).most_common(4))
         return {
-            "label":       _cluster_label(members),
+            "label":       label,
             "count":       len(members),
             "industries":  industries,
             "locations":   locations,
             "avg_salary":  f"~${avg_sal:,}" if avg_sal else None,
             "avg_match":   avg_match,
             "sample_jobs": list({m.title for m in members})[:6],
-            "top_terms":   [],  # populated below from TF-IDF center
+            "top_terms":   top_terms,
         }
 
-    n_text = len(feat_text)  # number of TF-IDF features (before numeric columns)
+    def _clean_terms(center_vec):
+        """Top TF-IDF terms, stripping pseudo-tokens used only for clustering."""
+        return [feat_text[j] for j in center_vec.argsort()[-12:][::-1]
+                if "_role" not in feat_text[j]
+                and "_level" not in feat_text[j]
+                and "_industry" not in feat_text[j]][:8]
 
     if best_k == 1:
-        cluster = _build_cluster(jobs)
-        centroid = X_text.mean(axis=0).flatten()
-        cluster["top_terms"] = [feat_text[i] for i in centroid.argsort()[-8:][::-1]]
+        centroid  = X_text.mean(axis=0).flatten()
+        top_terms = _clean_terms(centroid)
+        cluster   = _build_cluster(jobs, _base_label(jobs), top_terms)
         return jsonify({
             "clusters": [cluster], "n_clusters": 1,
             "total_jobs": len(jobs), "silhouette_score": None, "inertia": None,
             "note": "Jobs are too similar to split into meaningful sub-groups.",
         })
 
-    clusters = []
+    # Build all clusters, compute top_terms, then deduplicate labels
+    raw = []
     for i in range(best_k):
         idxs    = [j for j in range(len(jobs)) if best_labels[j] == i]
         members = [jobs[j] for j in idxs]
-        c       = _build_cluster(members)
-        # Use only the TF-IDF columns (first n_text cols) to find top terms
-        center_text = X_text[idxs].mean(axis=0)
-        c["top_terms"] = [feat_text[j] for j in center_text.argsort()[-8:][::-1]]
-        clusters.append(c)
+        center  = X_text[idxs].mean(axis=0)
+        raw.append({"members": members, "top_terms": _clean_terms(center),
+                    "base": _base_label(members)})
+
+    # Assign labels — if two clusters share a base, distinguish with top term
+    seen: dict = {}
+    for rc in raw:
+        base = rc["base"]
+        if base not in seen:
+            seen[base] = [rc]
+        else:
+            seen[base].append(rc)
+
+    clusters = []
+    for base, group in seen.items():
+        if len(group) == 1:
+            group[0]["label"] = base
+        else:
+            for i, rc in enumerate(group):
+                term = rc["top_terms"][0] if rc["top_terms"] else str(i + 1)
+                rc["label"] = f"{base} ({term})"
+
+    for rc in raw:
+        clusters.append(_build_cluster(rc["members"], rc["label"], rc["top_terms"]))
+
     clusters.sort(key=lambda x: x["count"], reverse=True)
 
     return jsonify({

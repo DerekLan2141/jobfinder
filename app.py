@@ -23,37 +23,39 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
-    # Migrate existing profile table — add columns introduced in rewrite
-    with db.engine.connect() as _conn:
-        for _col, _ddl in [
-            ("search_queries",   "TEXT"),
-            ("experience_level", "VARCHAR(50)"),
-            ("summary",          "TEXT"),
-            ("education",        "VARCHAR(300)"),
-            ("resume_text",      "TEXT"),
-            ("session_id",       "VARCHAR(36)"),
-        ]:
+    # Migrate existing tables — each statement gets its own connection so a
+    # failure on one column doesn't abort the whole transaction in Postgres.
+    def _safe_add_column(table: str, col: str, ddl: str):
+        with db.engine.connect() as _c:
             try:
-                _conn.execute(db.text(
-                    f"ALTER TABLE profile ADD COLUMN IF NOT EXISTS {_col} {_ddl}"
-                ))
+                _c.execute(db.text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}"))
+                _c.commit()
             except Exception:
                 pass
-        # Add new job columns introduced in rewrite
-        for _col, _ddl in [
-            ("salary",             "TEXT"),
-            ("source",             "VARCHAR(50)"),
-            ("ai_description",     "TEXT"),
-            ("ai_salary_estimate", "VARCHAR(200)"),
-            ("cv_guide",           "TEXT"),
-            ("session_id",         "VARCHAR(36)"),
-        ]:
-            try:
-                _conn.execute(db.text(
-                    f"ALTER TABLE job ADD COLUMN IF NOT EXISTS {_col} {_ddl}"
-                ))
-            except Exception:
-                pass
+
+    for _col, _ddl in [
+        ("search_queries",   "TEXT"),
+        ("experience_level", "VARCHAR(50)"),
+        ("summary",          "TEXT"),
+        ("education",        "VARCHAR(300)"),
+        ("resume_text",      "TEXT"),
+        ("session_id",       "VARCHAR(36)"),
+    ]:
+        _safe_add_column("profile", _col, _ddl)
+
+    for _col, _ddl in [
+        ("salary",             "TEXT"),
+        ("source",             "VARCHAR(50)"),
+        ("ai_description",     "TEXT"),
+        ("ai_salary_estimate", "VARCHAR(200)"),
+        ("cv_guide",           "TEXT"),
+        ("session_id",         "VARCHAR(36)"),
+        ("industry",           "VARCHAR(100)"),
+        ("is_saved",           "BOOLEAN DEFAULT FALSE"),
+        ("is_dismissed",       "BOOLEAN DEFAULT FALSE"),
+        ("notes",              "TEXT"),
+    ]:
+        _safe_add_column("job", _col, _ddl)
         # Drop old global unique constraint on url (breaks multi-user: same URL
         # from Adzuna can't be stored for two different sessions)
         for _stmt in [

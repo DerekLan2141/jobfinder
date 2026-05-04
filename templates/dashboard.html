@@ -591,9 +591,14 @@ async function loadClusters() {
       ${data.clusters.map((c,i)=>`
         <div class="cluster-card" style="border-top-color:${COLORS[i%COLORS.length]}">
           <div class="cluster-title">${c.label}</div>
-          <div class="cluster-count">${c.count} jobs · ${Math.round(c.count/data.total_jobs*100)}% of total</div>
+          <div class="cluster-count">${c.count} jobs · ${Math.round(c.count/data.total_jobs*100)}% of pool</div>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.5rem">
+            ${c.avg_salary ? `<span style="font-size:0.72rem;background:#d1fae5;color:#065f46;padding:0.15rem 0.5rem;border-radius:10px;font-weight:700">💰 ${c.avg_salary}/yr</span>` : ""}
+            ${c.avg_match  ? `<span style="font-size:0.72rem;background:#eef2ff;color:#4f46e5;padding:0.15rem 0.5rem;border-radius:10px;font-weight:700">🎯 ${c.avg_match}% match</span>` : ""}
+          </div>
           <div class="term-list">${c.top_terms.map(t=>`<span class="term-tag">${t}</span>`).join("")}</div>
           <ul class="sample-jobs">${c.sample_jobs.map(j=>`<li>${j}</li>`).join("")}</ul>
+          ${Object.keys(c.locations||{}).length ? `<div style="font-size:0.7rem;color:var(--gray-500);margin-top:0.4rem">📍 ${Object.keys(c.locations).join(" · ")}</div>` : ""}
         </div>`).join("")}
     </div>`;
 }

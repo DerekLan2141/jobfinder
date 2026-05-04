@@ -787,10 +787,12 @@ def salary_prediction():
     # Remote flag matters for pay scale
     # Location: only keep states with ≥3 salary samples to avoid overfitting
     loc_counts = Counter(j["job"].location or "Unknown" for j in labeled)
+    ind_counts = Counter(j["job"].industry or "Other" for j in labeled)
     keep_locs  = {l for l, c in loc_counts.items() if c >= 3}
+    keep_inds  = {i for i, c in ind_counts.items() if c >= 2}  # drop singleton industries
 
-    all_inds  = sorted(set(j["job"].industry or "Other" for j in labeled))
-    all_locs  = sorted(keep_locs | {"Other"})
+    all_inds  = sorted(keep_inds  | {"Other"})
+    all_locs  = sorted(keep_locs  | {"Other"})
     all_roles = ["engineer","scientist","manager","analyst","designer","consultant","other"]
 
     feat_names = (
@@ -802,25 +804,34 @@ def salary_prediction():
 
     def featurize(job):
         loc  = job.location or "Unknown"
+        ind  = job.industry  or "Other"
         gloc = loc if loc in keep_locs else "Other"
+        gind = ind if ind in keep_inds else "Other"
         text = (job.description_snippet or "") + " " + loc
         return (
             [_sal_seniority(job.title), int("remote" in text.lower())] +
             [1 if _sal_role(job.title) == r else 0 for r in all_roles] +
-            [1 if (job.industry or "Other") == i  else 0 for i in all_inds] +
-            [1 if gloc == l                         else 0 for l in all_locs]
+            [1 if gind == i else 0 for i in all_inds] +
+            [1 if gloc == l else 0 for l in all_locs]
         )
 
     X = [featurize(j["job"]) for j in labeled]
     y = [j["mid"] for j in labeled]
 
-    # ── RidgeCV: auto-selects best regularization strength ────────────────
-    reg = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 100.0, 500.0])
-    cv  = min(5, len(labeled) // 2)
-    if cv >= 2:
-        r2  = round(float(cross_val_score(reg, X, y, cv=cv, scoring="r2").mean()), 3)
+    # ── Step 1: RidgeCV on full data to find best alpha ───────────────────
+    # Do NOT wrap RidgeCV in cross_val_score — nested CV causes negative R²
+    from sklearn.linear_model import Ridge
+    reg_cv = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 100.0, 500.0, 2000.0])
+    reg_cv.fit(X, y)
+    best_alpha = reg_cv.alpha_
+
+    # ── Step 2: evaluate Ridge(best_alpha) with held-out CV ───────────────
+    reg = Ridge(alpha=best_alpha)
+    n_folds = min(3, len(labeled) // 3)   # conservative — fewer folds = stable R²
+    if n_folds >= 2:
+        r2  = round(float(cross_val_score(reg, X, y, cv=n_folds, scoring="r2").mean()), 3)
         mae = round(float(-cross_val_score(
-            reg, X, y, cv=cv, scoring="neg_mean_absolute_error").mean()))
+            reg, X, y, cv=n_folds, scoring="neg_mean_absolute_error").mean()))
     else:
         r2 = mae = None
 

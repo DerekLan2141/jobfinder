@@ -56,24 +56,20 @@ with app.app_context():
         ("notes",              "TEXT"),
     ]:
         _safe_add_column("job", _col, _ddl)
-        # Drop old global unique constraint on url (breaks multi-user: same URL
-        # from Adzuna can't be stored for two different sessions)
-        for _stmt in [
-            "ALTER TABLE job DROP CONSTRAINT IF EXISTS job_url_key",
-            "ALTER TABLE job DROP CONSTRAINT IF EXISTS uq_job_url_session",
-            "DROP INDEX IF EXISTS uq_job_url_session",
-        ]:
+
+    # Drop old global unique constraint on url, create per-session composite index
+    for _stmt in [
+        "ALTER TABLE job DROP CONSTRAINT IF EXISTS job_url_key",
+        "ALTER TABLE job DROP CONSTRAINT IF EXISTS uq_job_url_session",
+        "DROP INDEX IF EXISTS uq_job_url_session",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_job_url_session ON job (url, session_id)",
+    ]:
+        with db.engine.connect() as _c:
             try:
-                _conn.execute(db.text(_stmt))
+                _c.execute(db.text(_stmt))
+                _c.commit()
             except Exception:
                 pass
-        try:
-            _conn.execute(db.text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_job_url_session ON job (url, session_id)"
-            ))
-        except Exception:
-            pass
-        _conn.commit()
 
 
 # ── Gemini ─────────────────────────────────────────────────────────────────────

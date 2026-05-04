@@ -1054,5 +1054,293 @@ Return exactly:
     return jsonify({"results": results, "count": len(results)})
 
 
+@app.route("/api/admin/report.csv")
+def admin_report():
+    """
+    Full analytics export — protected by ADMIN_KEY env var.
+    Access: /api/admin/report.csv?key=<your ADMIN_KEY>
+    Sections: Overview · Industry · Location · Salary Model · Cluster Analysis
+    """
+    import csv, io as _io, math
+    from flask import Response
+    from sklearn.linear_model import LinearRegression
+    from sklearn.model_selection import cross_val_score
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import silhouette_score
+    import numpy as np
+
+    # ── Auth ──────────────────────────────────────────────────────────────────
+    admin_key = os.getenv("ADMIN_KEY", "")
+    if not admin_key:
+        return "ADMIN_KEY not set in environment.", 403
+    if request.args.get("key", "") != admin_key:
+        return "Forbidden.", 403
+
+    uid  = get_uid()
+    jobs = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
+    if not jobs:
+        return "No jobs in this session.", 404
+
+    profile = _active_profile()
+    skills  = _load_json(profile.skills)  if profile else []
+    titles  = _load_json(profile.job_titles) if profile else []
+    exp     = profile.experience_level or "" if profile else ""
+
+    out = _io.StringIO()
+    w   = csv.writer(out)
+
+    def blank(n=1):
+        for _ in range(n):
+            w.writerow([])
+
+    def section(title):
+        blank()
+        w.writerow([f"=== {title} ==="])
+
+    # ── SECTION 1: Overview ───────────────────────────────────────────────────
+    section("OVERVIEW")
+    w.writerow(["Metric", "Value"])
+
+    total      = len(jobs)
+    saved      = sum(1 for j in jobs if j.is_saved)
+    with_sal   = sum(1 for j in jobs if j.salary)
+    industries = {}
+    locs       = {}
+    for j in jobs:
+        industries[j.industry or "Other"] = industries.get(j.industry or "Other", 0) + 1
+        if j.location:
+            locs[j.location] = locs.get(j.location, 0) + 1
+
+    scores = [calc_match_score(j, skills, titles) for j in jobs] if profile else []
+    hps    = [calc_hire_probability(j, skills, exp) for j in jobs] if profile else []
+
+    w.writerow(["Total Jobs",          total])
+    w.writerow(["Saved Jobs",          saved])
+    w.writerow(["Jobs with Salary",    with_sal])
+    w.writerow(["Salary Coverage %",   round(with_sal / total * 100) if total else 0])
+    w.writerow(["Unique Industries",   len(industries)])
+    w.writerow(["Unique Locations",    len(locs)])
+    if scores:
+        w.writerow(["Avg Match Score",     round(sum(scores) / len(scores), 1)])
+        w.writerow(["Min Match Score",     min(scores)])
+        w.writerow(["Max Match Score",     max(scores)])
+    if hps:
+        w.writerow(["Avg Hire Probability", round(sum(hps) / len(hps), 1)])
+    if profile:
+        w.writerow(["Experience Level",   profile.experience_level or "—"])
+        w.writerow(["Education",          profile.education or "—"])
+        w.writerow(["Skills Detected",    len(skills)])
+        w.writerow(["Target Titles",      "; ".join(titles)])
+
+    # ── SECTION 2: Industry Breakdown ─────────────────────────────────────────
+    section("INDUSTRY BREAKDOWN")
+    w.writerow(["Industry", "Job Count", "% of Total", "Avg Match Score", "Avg Hire Probability"])
+    for ind, cnt in sorted(industries.items(), key=lambda x: x[1], reverse=True):
+        ind_jobs   = [j for j in jobs if (j.industry or "Other") == ind]
+        ind_scores = [calc_match_score(j, skills, titles) for j in ind_jobs] if profile else []
+        ind_hps    = [calc_hire_probability(j, skills, exp) for j in ind_jobs] if profile else []
+        w.writerow([
+            ind, cnt,
+            round(cnt / total * 100, 1),
+            round(sum(ind_scores) / len(ind_scores), 1) if ind_scores else "",
+            round(sum(ind_hps) / len(ind_hps), 1) if ind_hps else "",
+        ])
+
+    # ── SECTION 3: Location Distribution ─────────────────────────────────────
+    section("LOCATION DISTRIBUTION")
+    w.writerow(["Location", "Job Count", "% of Total"])
+    for loc, cnt in sorted(locs.items(), key=lambda x: x[1], reverse=True):
+        w.writerow([loc, cnt, round(cnt / total * 100, 1)])
+
+    # ── SECTION 4: Salary Hotspots ────────────────────────────────────────────
+    section("SALARY HOTSPOTS — INDUSTRY × LOCATION")
+    w.writerow(["Rank", "Industry", "Location", "Avg Salary ($)", "Job Count"])
+    num_re = re.compile(r'\$([\d,]+)')
+    ind_loc_sal = {}
+    for job in jobs:
+        if job.salary and job.industry and job.location:
+            nums = [int(n.replace(",", "")) for n in num_re.findall(job.salary)]
+            if nums:
+                key = (job.industry, job.location)
+                ind_loc_sal.setdefault(key, []).append(sum(nums) / len(nums))
+    combos = sorted(
+        [(k[0], k[1], round(sum(v) / len(v)), len(v)) for k, v in ind_loc_sal.items()],
+        key=lambda x: x[2], reverse=True,
+    )
+    for rank, (ind, loc, avg, cnt) in enumerate(combos, 1):
+        w.writerow([rank, ind, loc, avg, cnt])
+    if not combos:
+        w.writerow(["", "No salary+location data available"])
+
+    # ── SECTION 5: Linear Regression — Salary Model ───────────────────────────
+    section("LINEAR REGRESSION — SALARY MODEL")
+
+    labeled = []
+    for job in jobs:
+        if job.salary:
+            nums = [int(n.replace(",", "")) for n in num_re.findall(job.salary)]
+            if nums:
+                labeled.append({"job": job, "mid": sum(nums) / len(nums)})
+
+    if len(labeled) >= 6:
+        all_inds  = sorted(set(j["job"].industry or "Other" for j in labeled))
+        all_locs  = sorted(set(j["job"].location or "Unknown" for j in labeled))
+        feat_names = [f"industry:{i}" for i in all_inds] + [f"location:{l}" for l in all_locs]
+
+        def featurize(job):
+            return (
+                [1 if (job.industry or "Other") == i else 0 for i in all_inds] +
+                [1 if (job.location or "Unknown") == l else 0 for l in all_locs]
+            )
+
+        X = [featurize(j["job"]) for j in labeled]
+        y = [j["mid"] for j in labeled]
+        reg = LinearRegression()
+        cv  = min(5, len(labeled) // 2)
+
+        if cv >= 2:
+            r2  = round(float(cross_val_score(reg, X, y, cv=cv, scoring="r2").mean()), 4)
+            mae = round(float(-cross_val_score(reg, X, y, cv=cv, scoring="neg_mean_absolute_error").mean()), 2)
+            mse = round(float(-cross_val_score(reg, X, y, cv=cv, scoring="neg_mean_squared_error").mean()), 2)
+            rmse = round(math.sqrt(mse), 2)
+        else:
+            r2 = mae = mse = rmse = "N/A (need more data)"
+
+        reg.fit(X, y)
+
+        mids     = [j["mid"] for j in labeled]
+        sal_mean = round(float(np.mean(mids)), 2)
+        sal_std  = round(float(np.std(mids)), 2)
+
+        w.writerow(["Metric", "Value", "Notes"])
+        w.writerow(["Training Samples",  len(labeled), "jobs with listed salary"])
+        w.writerow(["Features",          len(feat_names), "industry + location one-hot"])
+        w.writerow(["Cross-Val Folds",   cv])
+        w.writerow(["R² (CV)",           r2, "1.0 = perfect, 0 = no fit"])
+        w.writerow(["MAE (CV)",          f"${mae:,.2f}" if isinstance(mae, float) else mae, "mean absolute error"])
+        w.writerow(["MSE (CV)",          f"${mse:,.2f}" if isinstance(mse, float) else mse, "mean squared error"])
+        w.writerow(["RMSE (CV)",         f"${rmse:,.2f}" if isinstance(rmse, float) else rmse, "root mean squared error"])
+        w.writerow(["Intercept",         f"${reg.intercept_:,.2f}", "baseline salary"])
+        w.writerow(["Salary Mean",       f"${sal_mean:,.2f}"])
+        w.writerow(["Salary Std Dev",    f"${sal_std:,.2f}"])
+
+        blank()
+        w.writerow(["--- Feature Coefficients ---"])
+        w.writerow(["Feature", "Type", "Coefficient ($)", "Direction"])
+        coef_pairs = sorted(zip(feat_names, reg.coef_), key=lambda x: x[1], reverse=True)
+        for name, coef in coef_pairs:
+            ftype = name.split(":")[0]
+            fname = name.split(":", 1)[1]
+            direction = "+" if coef > 0 else "-"
+            w.writerow([fname, ftype, round(coef, 2), direction])
+
+        blank()
+        w.writerow(["--- Salary Predictions (unlabeled jobs) ---"])
+        w.writerow(["Title", "Company", "Industry", "Location", "Predicted Salary ($)"])
+        unlabeled = [j for j in jobs if not j.salary or not num_re.findall(j.salary or "")]
+        for job in unlabeled[:50]:
+            raw = reg.predict([featurize(job)])[0]
+            predicted = max(25000, int(round(raw / 1000) * 1000))
+            w.writerow([job.title, job.company, job.industry or "—", job.location or "—", predicted])
+    else:
+        w.writerow(["Status", f"Insufficient data — only {len(labeled)} jobs have salary (need ≥ 6)"])
+
+    # ── SECTION 6: All Jobs with Scores ───────────────────────────────────────
+    section("ALL JOBS — FULL DETAIL")
+    w.writerow([
+        "Title", "Company", "Location", "Industry", "Salary",
+        "Match Score", "Hire Probability", "Saved",
+        "Date Posted", "Source", "URL", "Notes",
+    ])
+    for j in jobs:
+        ms = calc_match_score(j, skills, titles) if profile else ""
+        hp = calc_hire_probability(j, skills, exp) if profile else ""
+        w.writerow([
+            j.title, j.company, j.location or "", j.industry or "", j.salary or "",
+            ms, hp, j.is_saved,
+            j.date_posted or "", j.source or "", j.url, j.notes or "",
+        ])
+
+    # ── SECTION 7: K-Means Clustering ─────────────────────────────────────────
+    section("K-MEANS CLUSTERING")
+
+    if len(jobs) >= 4:
+        texts      = [f"{j.title} {j.description_snippet or ''}" for j in jobs]
+        vectorizer = TfidfVectorizer(max_features=300, stop_words="english", ngram_range=(1, 2))
+        X_cl = vectorizer.fit_transform(texts)
+        feat_cl = vectorizer.get_feature_names_out()
+
+        min_size = max(3, len(jobs) // 8)
+        max_k    = min(6, len(jobs) // min_size)
+        best_k, best_km, best_labels, best_sil = 1, None, None, -1.0
+
+        for k in range(2, max_k + 1):
+            km   = KMeans(n_clusters=k, random_state=42, n_init=10)
+            lbls = km.fit_predict(X_cl)
+            if min(int(np.sum(lbls == i)) for i in range(k)) < min_size:
+                continue
+            try:
+                s = float(silhouette_score(X_cl, lbls))
+            except Exception:
+                continue
+            if s > best_sil:
+                best_sil, best_k, best_km, best_labels = s, k, km, lbls
+
+        w.writerow(["Metric", "Value"])
+        w.writerow(["Clusters (K)",      best_k])
+        w.writerow(["Total Jobs",        len(jobs)])
+        w.writerow(["Silhouette Score",  round(best_sil, 4) if best_k > 1 else "N/A (single cluster)"])
+        w.writerow(["Inertia",           round(float(best_km.inertia_), 2) if best_km else "N/A"])
+
+        blank()
+        w.writerow(["--- Cluster Details ---"])
+        w.writerow(["Cluster", "Size", "% of Total", "Top Terms", "Industries"])
+
+        if best_k == 1:
+            centroid = np.asarray(X_cl.mean(axis=0)).flatten()
+            top_idx  = centroid.argsort()[-8:][::-1]
+            terms    = "; ".join(feat_cl[i] for i in top_idx)
+            inds     = {}
+            for j in jobs:
+                inds[j.industry or "Other"] = inds.get(j.industry or "Other", 0) + 1
+            ind_str = "; ".join(f"{k}({v})" for k, v in sorted(inds.items(), key=lambda x: x[1], reverse=True))
+            w.writerow([1, len(jobs), 100, terms, ind_str])
+        else:
+            for i in range(best_k):
+                members  = [jobs[j] for j in range(len(jobs)) if best_labels[j] == i]
+                top_idx  = best_km.cluster_centers_[i].argsort()[-8:][::-1]
+                terms    = "; ".join(feat_cl[idx] for idx in top_idx)
+                inds     = {}
+                for m in members:
+                    inds[m.industry or "Other"] = inds.get(m.industry or "Other", 0) + 1
+                ind_str = "; ".join(f"{k}({v})" for k, v in sorted(inds.items(), key=lambda x: x[1], reverse=True))
+                w.writerow([
+                    i + 1, len(members),
+                    round(len(members) / len(jobs) * 100, 1),
+                    terms, ind_str,
+                ])
+
+        blank()
+        w.writerow(["--- Job → Cluster Assignment ---"])
+        w.writerow(["Title", "Company", "Industry", "Cluster"])
+        if best_k == 1:
+            for j in jobs:
+                w.writerow([j.title, j.company, j.industry or "—", 1])
+        else:
+            for idx, j in enumerate(jobs):
+                w.writerow([j.title, j.company, j.industry or "—", int(best_labels[idx]) + 1])
+    else:
+        w.writerow(["Status", "Not enough jobs to cluster (need ≥ 4)"])
+
+    out.seek(0)
+    from flask import Response
+    return Response(
+        out.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=jobfinder_admin_report.csv"},
+    )
+
+
 if __name__ == "__main__":
     app.run(debug=True)

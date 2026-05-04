@@ -2,7 +2,7 @@ import os
 import json
 import re
 import uuid
-from flask import Flask, render_template, jsonify, request, session
+from flask import Flask, render_template, jsonify, request, session, make_response
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from models import db, Job, Profile
@@ -358,13 +358,16 @@ def _load_json(val) -> list:
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
+def _no_cache(html: str):
+    resp = make_response(html)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
 @app.route("/")
 def index():
-    uid = get_uid()
-    Profile.query.filter_by(session_id=uid).delete()
-    Job.query.filter(Job.session_id == uid, Job.is_saved == False).delete()
-    db.session.commit()
-    return render_template("index.html")
+    return _no_cache(render_template("index.html"))
 
 
 @app.route("/api/profile")
@@ -457,7 +460,7 @@ def clear_resume():
     return jsonify({"success": True})
 
 
-def _refresh_jobs(queries: list[str], session_id: str, limit: int = 10, max_pages: int = 5):
+def _refresh_jobs(queries: list[str], session_id: str, limit: int = 10, max_pages: int = 8):
     """Fetch jobs from Adzuna, classify industries (keyword then LLM), store new ones."""
     results = fetch_jobs(queries[:limit], results_per_page=50, max_pages=max_pages)
 
@@ -723,7 +726,7 @@ def resume_text():
 
 @app.route("/dashboard")
 def dashboard():
-    return render_template("dashboard.html")
+    return _no_cache(render_template("dashboard.html"))
 
 
 @app.route("/api/dashboard/salary-prediction")
@@ -1099,7 +1102,7 @@ def settings():
 
 @app.route("/batch")
 def batch_page():
-    return render_template("batch.html")
+    return _no_cache(render_template("batch.html"))
 
 
 @app.route("/api/batch/upload", methods=["POST"])

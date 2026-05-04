@@ -244,7 +244,8 @@
       <h2 style="margin:0">Resume Profiles</h2>
       <div style="display:flex;gap:0.5rem;align-items:center">
         <span class="badge badge-indigo" id="resultCount"></span>
-        <button class="btn-primary btn-sm" id="downloadJsonBtn">⬇ Download JSON</button>
+        <button class="btn-primary btn-sm" id="downloadCsvBtn" style="background:var(--green)">⬇ Download CSV</button>
+        <button class="btn-primary btn-sm" id="downloadJsonBtn" style="background:var(--gray-700)">⬇ JSON</button>
       </div>
     </div>
 
@@ -452,6 +453,37 @@ function buildCard(r) {
       </div>
     </div>`;
 }
+
+document.getElementById("downloadCsvBtn").addEventListener("click", () => {
+  const headers = [
+    "filename","experience_level","years_experience","education","skills_count","skills",
+    "job_titles","top_industries","strengths","gaps","summary",
+    "job_pool_size","avg_match","max_match","min_match","score_std",
+    "avg_hire_prob","high_match_pct","score_80_84","score_85_89","score_90_94","score_95_99",
+    "top_job_title","top_job_company","top_job_match","top_job_hire_prob","error"
+  ];
+  const rows = lastResults.map(r => {
+    const m  = r.match_metrics || {};
+    const d  = m.score_dist   || {};
+    const t  = (m.top_jobs || [])[0] || {};
+    return [
+      r.filename, r.experience_level||"", r.years_of_experience||"", r.education||"",
+      (r.skills||[]).length, (r.skills||[]).join("; "),
+      (r.job_titles||[]).join("; "), (r.top_industries||[]).join("; "),
+      (r.strengths||[]).join("; "), (r.gaps||[]).join("; "),
+      (r.summary||"").replace(/,/g," "),
+      m.job_count||"", m.avg_match||"", m.max_match||"", m.min_match||"", m.score_std||"",
+      m.avg_hire_prob||"", m.high_match_pct||"",
+      d["80-84"]||0, d["85-89"]||0, d["90-94"]||0, d["95-99"]||0,
+      t.title||"", t.company||"", t.match||"", t.hire_prob||"",
+      r.error||""
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(",");
+  });
+  const csv  = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type:"text/csv" });
+  const a    = document.createElement("a");
+  a.href     = URL.createObjectURL(blob); a.download = "batch_accuracy.csv"; a.click();
+});
 
 document.getElementById("downloadJsonBtn").addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(lastResults, null, 2)], { type:"application/json" });

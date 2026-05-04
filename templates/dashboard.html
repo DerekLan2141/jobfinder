@@ -612,8 +612,8 @@ async function loadSalary() {
   if (data.error) { el.innerHTML = `<div class="error-msg">${data.error}</div>`; return; }
 
   const r2 = data.cv_r2;
-  const r2Color = r2 == null ? "badge-indigo" : r2 > 0.5 ? "badge-green" : r2 > 0.2 ? "badge-yellow" : "badge-red";
-  const r2Label = r2 == null ? "" : r2 > 0.5 ? "Strong fit" : r2 > 0.2 ? "Moderate fit" : "Weak fit";
+  const r2Color = r2 == null ? "badge-indigo" : r2 > 0.8 ? "badge-green" : r2 > 0.5 ? "badge-yellow" : "badge-red";
+  const r2Label = r2 == null ? "" : r2 > 0.8 ? "Strong fit" : r2 > 0.5 ? "Moderate fit" : "Weak fit";
 
   el.innerHTML = `
     <div class="badge-row">
@@ -621,7 +621,7 @@ async function loadSalary() {
       <span class="badge badge-indigo">${data.unlabeled_count} jobs to predict</span>
       <span class="badge badge-indigo">${data.feature_count} features</span>
       <span class="badge badge-indigo">Intercept: $${(data.intercept||0).toLocaleString()}</span>
-      ${r2 != null ? `<span class="badge ${r2Color}">R² = ${r2} — ${r2Label} (${data.cv_folds}-fold CV)</span>` : ""}
+      ${r2 != null ? `<span class="badge ${r2Color}">R² = ${r2} — ${r2Label} (training fit)</span>` : ""}
       ${data.cv_mae != null ? `<span class="badge badge-indigo">MAE ≈ $${data.cv_mae.toLocaleString()}</span>` : ""}
     </div>`;
 
@@ -774,18 +774,18 @@ async function loadEvaluation() {
     <div class="eval-card">
       ${(()=>{
         const r2 = sal.cv_r2;
-        const r2Color = r2==null?"badge-indigo":r2>0.5?"badge-green":r2>0.2?"badge-yellow":"badge-red";
+        const r2Color = r2==null?"badge-indigo":r2>0.8?"badge-green":r2>0.5?"badge-yellow":"badge-red";
         return `
-      <div class="eval-title">💰 Salary Prediction (Linear Regression)
+      <div class="eval-title">💰 Salary Prediction (Ridge Regression)
         <span class="badge ${r2Color}">R² = ${r2??'N/A'}</span>
       </div>
-      <div class="eval-desc">Linear Regression trained on one-hot industry + location features to predict a
-        continuous salary value. R² measures how much variance is explained (0 = none, 1 = perfect).
-        MAE is the average dollar prediction error. Evaluated with ${sal.cv_folds??3}-fold cross-validation.</div>
-      <div class="metric-row"><span class="metric-name">R² Score (CV)</span><span class="metric-value">${r2??'—'} ${r2!=null?"("+( r2>0.5?"Strong":r2>0.2?"Moderate":"Weak")+" fit)":""}</span></div>
-      <div class="metric-row"><span class="metric-name">MAE (CV)</span><span class="metric-value">${sal.cv_mae!=null?"~$"+sal.cv_mae.toLocaleString():"—"}</span></div>
+      <div class="eval-desc">Ridge Regression trained on structured features (seniority, role, industry,
+        location) plus TF-IDF text features from job descriptions. R² measures variance explained
+        (0 = none, 1 = perfect). MAE is the average dollar prediction error on training data.</div>
+      <div class="metric-row"><span class="metric-name">R² Score (training fit)</span><span class="metric-value">${r2??'—'} ${r2!=null?"("+( r2>0.8?"Strong":r2>0.5?"Moderate":"Weak")+" fit)":""}</span></div>
+      <div class="metric-row"><span class="metric-name">MAE (training)</span><span class="metric-value">${sal.cv_mae!=null?"~$"+sal.cv_mae.toLocaleString():"—"}</span></div>
       <div class="metric-row"><span class="metric-name">Training Samples</span><span class="metric-value">${sal.labeled_count??'—'}</span></div>
-      <div class="metric-row"><span class="metric-name">Features</span><span class="metric-value">${sal.feature_count??'—'} (industry + location)</span></div>
+      <div class="metric-row"><span class="metric-name">Features</span><span class="metric-value">${sal.feature_count??'—'} (structured + TF-IDF text)</span></div>
       <div class="metric-row"><span class="metric-name">Predictions Made</span><span class="metric-value">${(sal.predictions||[]).length}</span></div>`;
       })()}
     </div>

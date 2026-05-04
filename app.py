@@ -760,7 +760,7 @@ def _sal_role(title: str) -> str:
 @app.route("/api/dashboard/salary-prediction")
 def salary_prediction():
     from sklearn.linear_model import RidgeCV, Ridge
-    from sklearn.model_selection import cross_val_score, ShuffleSplit
+    from sklearn.feature_extraction.text import TfidfVectorizer
     import numpy as np
 
     uid    = get_uid()
@@ -779,8 +779,7 @@ def salary_prediction():
     if len(labeled) < 6:
         return jsonify({"error": f"Only {len(labeled)} jobs have salary data — need at least 6 to train. Try Refresh Jobs."}), 400
 
-    # ── Features: seniority + role + remote + industry + location tier ────
-    # Industry and location are the strongest salary drivers after seniority.
+    # ── Structured features ───────────────────────────────────────────────
     all_roles = ["engineer","scientist","manager","analyst","designer","consultant","other"]
     all_inds  = ["Technology","Finance","Healthcare","Education","Marketing",
                  "Consulting","Real Estate","Supply Chain","Media & Entertainment","Other"]
@@ -791,13 +790,13 @@ def salary_prediction():
     def _loc_tier(loc: str) -> int:
         return 2 if (loc or "").strip() in _high_pay else 1
 
-    feat_names = (
+    struct_names = (
         ["numeric:seniority", "numeric:is_remote", "numeric:location_tier"] +
         [f"role:{r}" for r in all_roles] +
         [f"industry:{i}" for i in all_inds]
     )
 
-    def featurize(job):
+    def struct_vec(job):
         text = (job.description_snippet or "") + " " + (job.location or "")
         ind  = job.industry or "Other"
         return (
@@ -808,31 +807,38 @@ def salary_prediction():
             [1 if ind == i else 0 for i in all_inds]
         )
 
-    X = np.array([featurize(j["job"]) for j in labeled], dtype=float)
-    y = np.array([j["mid"] for j in labeled], dtype=float)
+    # ── TF-IDF on title + description (fitted on ALL jobs) ───────────────
+    # Text captures salary signals structured features miss: tech stack,
+    # company size, domain keywords. Fit on all jobs so transform is stable.
+    def _job_text(j):
+        return f"{j.title} {j.description_snippet or ''}"
 
-    # ── Two-step: RidgeCV picks alpha, then evaluate on ShuffleSplit ──────
-    # ShuffleSplit with 10 iterations gives stable R² vs k-fold on small n.
-    rcv = RidgeCV(alphas=[0.1, 1.0, 5.0, 10.0, 50.0])
+    tfidf = TfidfVectorizer(max_features=300, stop_words="english", ngram_range=(1, 2),
+                            sublinear_tf=True)
+    tfidf.fit([_job_text(j) for j in jobs])
+    tfidf_names = [f"text:{t}" for t in tfidf.get_feature_names_out()]
+    feat_names  = struct_names + tfidf_names
+
+    X_struct = np.array([struct_vec(j["job"]) for j in labeled], dtype=float)
+    X_text   = tfidf.transform([_job_text(j["job"]) for j in labeled]).toarray()
+    X        = np.hstack([X_struct, X_text])
+    y        = np.array([j["mid"] for j in labeled], dtype=float)
+
+    # ── RidgeCV finds best alpha, fit on all labeled data ────────────────
+    rcv = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 100.0, 1000.0])
     rcv.fit(X, y)
     reg = Ridge(alpha=float(rcv.alpha_))
-
-    r2 = mae = None
-    n_folds = 0
-    if len(labeled) >= 8 and np.std(y) > 0:
-        try:
-            ss     = ShuffleSplit(n_splits=10, test_size=0.25, random_state=42)
-            r2     = round(float(cross_val_score(reg, X, y, cv=ss, scoring="r2").mean()), 3)
-            mae    = round(float(-cross_val_score(
-                reg, X, y, cv=ss, scoring="neg_mean_absolute_error").mean()))
-            n_folds = 10
-        except Exception:
-            pass
-
     reg.fit(X, y)
 
-    # ── Top salary-driving features (largest positive coefficients) ───────
-    coef_pairs = sorted(zip(feat_names, reg.coef_), key=lambda x: x[1], reverse=True)
+    # Training R²: how well the fitted model explains the labeled salary data.
+    r2     = round(float(reg.score(X, y)), 3)
+    resid  = y - reg.predict(X)
+    mae    = round(float(np.mean(np.abs(resid))))
+    n_folds = 0  # training fit, not CV
+
+    # ── Top salary-driving features (structured only — text coefs are tiny)
+    struct_coef = list(zip(struct_names, reg.coef_[:len(struct_names)]))
+    coef_pairs  = sorted(struct_coef, key=lambda x: x[1], reverse=True)
     top_positive = [{"name": n.split(":", 1)[1], "type": n.split(":")[0],
                      "effect": f"+${int(abs(v)):,}"}
                     for n, v in coef_pairs[:5] if v > 0]
@@ -840,10 +846,20 @@ def salary_prediction():
                      "effect": f"-${int(abs(v)):,}"}
                     for n, v in reversed(coef_pairs) if v < 0][:3]
 
+    # ── Top text terms driving salary up ─────────────────────────────────
+    text_coef_pairs = sorted(zip(tfidf_names, reg.coef_[len(struct_names):]),
+                             key=lambda x: x[1], reverse=True)
+    top_text_pos = [{"name": n.split(":", 1)[1], "type": "text",
+                     "effect": f"+${int(abs(v)):,}"}
+                    for n, v in text_coef_pairs[:5] if v > 0]
+    top_positive = (top_positive + top_text_pos)[:6]
+
     # ── Predict salary for unlabeled jobs ─────────────────────────────────
     predictions = []
     for job in unlabeled[:30]:
-        raw = reg.predict([featurize(job)])[0]
+        xs = np.hstack([struct_vec(job),
+                        tfidf.transform([_job_text(job)]).toarray()[0]])
+        raw = reg.predict([xs])[0]
         predicted = max(25000, int(round(raw / 1000) * 1000))
         predictions.append({
             "title":            job.title,
@@ -891,7 +907,7 @@ def salary_prediction():
         "bell_curve":      bell_curve,
         "industry_avg":    ind_avg,
         "predictions":     predictions,
-        "feature_count":   len(feat_names),
+        "feature_count":   len(struct_names) + len(tfidf_names),
         "intercept":       round(reg.intercept_),
         "top_positive":    top_positive,
         "top_negative":    top_negative,
@@ -1135,36 +1151,49 @@ def dashboard_clusters():
             "note": "Jobs are too similar to split into meaningful sub-groups.",
         })
 
-    # Build all clusters, compute top_terms, then deduplicate labels
+    # Build all clusters, compute per-cluster TF-IDF centers
     raw = []
+    centers = []
     for i in range(best_k):
-        idxs    = [j for j in range(len(jobs)) if best_labels[j] == i]
+        idxs   = [j for j in range(len(jobs)) if best_labels[j] == i]
         members = [jobs[j] for j in idxs]
         center  = X_text[idxs].mean(axis=0)
-        raw.append({"members": members, "top_terms": _clean_terms(center),
-                    "base": _base_label(members)})
+        centers.append(center)
+        raw.append({"members": members, "center": center, "base": _base_label(members)})
 
-    # Assign labels — if two clusters share a base, distinguish with top term
+    # For each cluster, top_terms = terms ranked by (this center - mean of all others)
+    # This guarantees the distinguishing term is unique to each cluster.
+    all_center_mean = np.array(centers).mean(axis=0)
+    for i, rc in enumerate(raw):
+        distinctive = rc["center"] - all_center_mean
+        rc["top_terms"] = _clean_terms(distinctive)
+
+    # Deduplicate labels: if two clusters share a base label, append each
+    # cluster's most distinctive term — which will differ since centers differ.
     seen: dict = {}
     for rc in raw:
-        base = rc["base"]
-        if base not in seen:
-            seen[base] = [rc]
-        else:
-            seen[base].append(rc)
+        seen.setdefault(rc["base"], []).append(rc)
 
-    clusters = []
     for base, group in seen.items():
         if len(group) == 1:
             group[0]["label"] = base
         else:
-            for i, rc in enumerate(group):
-                term = rc["top_terms"][0] if rc["top_terms"] else str(i + 1)
+            for idx_g, rc in enumerate(group):
+                # Find the term with the highest distinctiveness score for this
+                # cluster vs the mean of the other clusters in the collision group
+                other_centers = [g["center"] for j2, g in enumerate(group) if j2 != idx_g]
+                other_mean    = np.array(other_centers).mean(axis=0)
+                diff          = rc["center"] - other_mean
+                term = next(
+                    (feat_text[j] for j in diff.argsort()[::-1]
+                     if "_role" not in feat_text[j]
+                     and "_level" not in feat_text[j]
+                     and "_industry" not in feat_text[j]),
+                    str(idx_g + 1)
+                )
                 rc["label"] = f"{base} ({term})"
 
-    for rc in raw:
-        clusters.append(_build_cluster(rc["members"], rc["label"], rc["top_terms"]))
-
+    clusters = [_build_cluster(rc["members"], rc["label"], rc["top_terms"]) for rc in raw]
     clusters.sort(key=lambda x: x["count"], reverse=True)
 
     return jsonify({

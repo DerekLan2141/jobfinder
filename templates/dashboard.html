@@ -158,10 +158,6 @@
           <div class="chart-wrap"><canvas id="industryChart"></canvas></div>
         </div>
         <div class="chart-card">
-          <h2>Job Concentration by Location</h2>
-          <div class="chart-wrap"><canvas id="locationChart"></canvas></div>
-        </div>
-        <div class="chart-card">
           <h2>Average Salary by Industry</h2>
           <div class="chart-wrap"><canvas id="indSalaryChart"></canvas></div>
         </div>
@@ -435,9 +431,6 @@ async function loadEDA() {
 
   const ind = stats.industry_breakdown;
   mkChart("industryChart","bar",Object.keys(ind),Object.values(ind),{horizontal:true});
-
-  const ld = stats.top_locations;
-  mkChart("locationChart","bar",Object.keys(ld),Object.values(ld),{horizontal:true,color:"#0891b2"});
 
   const ia = market.domain_avg_salary||{};
   const iaK = Object.keys(ia).sort((a,b)=>ia[b]-ia[a]);

@@ -1045,8 +1045,46 @@ Return exactly:
   "gaps": ["top 2-3 skill gaps or weaknesses relative to tech/professional job market"]
 }}"""
 
-            data          = json.loads(gemini_generate(prompt, temperature=0.3))
+            data             = json.loads(gemini_generate(prompt, temperature=0.3))
             data["filename"] = fname
+
+            # ── Score this resume against the session's job pool ──────────
+            uid       = get_uid()
+            pool      = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
+            if pool:
+                import numpy as _np
+                r_skills = data.get("skills", [])
+                r_titles = data.get("job_titles", [])
+                r_exp    = data.get("experience_level", "")
+                m_scores = [calc_match_score(j, r_skills, r_titles) for j in pool]
+                h_scores = [calc_hire_probability(j, r_skills, r_exp)  for j in pool]
+
+                top_jobs = sorted(
+                    zip(pool, m_scores, h_scores), key=lambda x: x[1], reverse=True
+                )[:5]
+
+                data["match_metrics"] = {
+                    "job_count":    len(pool),
+                    "avg_match":    round(float(_np.mean(m_scores)), 1),
+                    "max_match":    int(max(m_scores)),
+                    "min_match":    int(min(m_scores)),
+                    "score_std":    round(float(_np.std(m_scores)), 2),
+                    "avg_hire_prob": round(float(_np.mean(h_scores)), 1),
+                    "high_match_pct": round(sum(1 for s in m_scores if s >= 90) / len(m_scores) * 100, 1),
+                    "score_dist": {
+                        "80-84": sum(1 for s in m_scores if 80 <= s < 85),
+                        "85-89": sum(1 for s in m_scores if 85 <= s < 90),
+                        "90-94": sum(1 for s in m_scores if 90 <= s < 95),
+                        "95-99": sum(1 for s in m_scores if s >= 95),
+                    },
+                    "top_jobs": [
+                        {"title": j.title, "company": j.company,
+                         "industry": j.industry or "—",
+                         "match": ms, "hire_prob": hp}
+                        for j, ms, hp in top_jobs
+                    ],
+                }
+
             results.append(data)
         except Exception as e:
             results.append({"filename": fname, "error": str(e)})
@@ -1332,6 +1370,78 @@ def admin_report():
                 w.writerow([j.title, j.company, j.industry or "—", int(best_labels[idx]) + 1])
     else:
         w.writerow(["Status", "Not enough jobs to cluster (need ≥ 4)"])
+
+    # ── SECTION 8: Matching Model Accuracy Evaluation ─────────────────────────
+    section("MATCHING MODEL ACCURACY EVALUATION")
+    w.writerow(["Metric", "Value", "Interpretation"])
+
+    if profile and jobs:
+        all_ms = [calc_match_score(j, skills, titles) for j in jobs]
+        all_hp = [calc_hire_probability(j, skills, exp) for j in jobs]
+
+        ms_mean   = round(float(np.mean(all_ms)), 2)
+        ms_std    = round(float(np.std(all_ms)), 2)
+        ms_min    = int(min(all_ms))
+        ms_max    = int(max(all_ms))
+        ms_range  = ms_max - ms_min
+        hp_mean   = round(float(np.mean(all_hp)), 2)
+        hp_std    = round(float(np.std(all_hp)), 2)
+
+        high_match   = sum(1 for s in all_ms if s >= 90)
+        mid_match    = sum(1 for s in all_ms if 85 <= s < 90)
+        low_match    = sum(1 for s in all_ms if s < 85)
+        pct_high     = round(high_match / len(all_ms) * 100, 1)
+
+        # Discriminative power: ratio of std to max-possible range (0-19 in 80-99 scale)
+        disc_power = round(ms_std / 9.5 * 100, 1)  # normalised to 0-100%
+
+        # Skill coverage per job: what % of job keywords appear in resume skills
+        coverages = []
+        for job in jobs:
+            job_text  = " ".join(filter(None, [job.title, job.description_snippet or ""])).lower()
+            skill_hits = sum(1 for s in skills if s.lower() in job_text)
+            coverages.append(skill_hits / len(skills) * 100 if skills else 0)
+        avg_coverage = round(float(np.mean(coverages)), 1)
+        max_coverage = round(float(max(coverages)), 1)
+
+        w.writerow(["--- Match Score Statistics ---", "", ""])
+        w.writerow(["Mean Match Score",     ms_mean,  "Average relevance of jobs to your resume"])
+        w.writerow(["Std Dev (Match)",       ms_std,   "Higher = model is more selective / discriminating"])
+        w.writerow(["Min Score",             ms_min,   "Least relevant job found"])
+        w.writerow(["Max Score",             ms_max,   "Best matching job found"])
+        w.writerow(["Score Range",           ms_range, "Spread between best and worst match"])
+        w.writerow(["Discriminative Power",  f"{disc_power}%",
+                    "How well the model differentiates between jobs (higher is better)"])
+        blank()
+        w.writerow(["--- Hire Probability Statistics ---", "", ""])
+        w.writerow(["Mean Hire Probability",  hp_mean, "Avg estimated screening pass rate"])
+        w.writerow(["Std Dev (Hire Prob)",    hp_std,  "Spread — higher means your fit varies a lot across jobs"])
+        w.writerow(["Min Hire Probability",   int(min(all_hp))])
+        w.writerow(["Max Hire Probability",   int(max(all_hp))])
+        blank()
+        w.writerow(["--- Score Distribution (Match) ---", "", ""])
+        w.writerow(["Tier",        "Count", "% of Jobs"])
+        w.writerow(["High  (90-99)",  high_match, f"{pct_high}%"])
+        w.writerow(["Mid   (85-89)",  mid_match,  f"{round(mid_match/len(all_ms)*100,1)}%"])
+        w.writerow(["Low   (80-84)",  low_match,  f"{round(low_match/len(all_ms)*100,1)}%"])
+        blank()
+        w.writerow(["--- Skill Coverage ---", "", ""])
+        w.writerow(["Avg Skill Coverage per Job", f"{avg_coverage}%",
+                    "% of your skills that appear in each job on average"])
+        w.writerow(["Best Job Coverage",           f"{max_coverage}%",
+                    "Your skills in the best-matching job"])
+        w.writerow(["Skills in Profile",           len(skills)])
+        blank()
+        w.writerow(["--- Per-Job Scores ---"])
+        w.writerow(["Title", "Company", "Industry", "Match Score", "Hire Probability",
+                    "Skill Coverage %"])
+        for job, ms, hp, cov in sorted(
+            zip(jobs, all_ms, all_hp, coverages), key=lambda x: x[1], reverse=True
+        ):
+            w.writerow([job.title, job.company, job.industry or "—",
+                        ms, hp, round(cov, 1)])
+    else:
+        w.writerow(["Status", "Upload a resume first to evaluate matching accuracy"])
 
     out.seek(0)
     from flask import Response

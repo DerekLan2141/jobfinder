@@ -364,7 +364,7 @@ def clear_resume():
     return jsonify({"success": True})
 
 
-def _refresh_jobs(queries: list[str], session_id: str, limit: int = 10, max_pages: int = 3):
+def _refresh_jobs(queries: list[str], session_id: str, limit: int = 10, max_pages: int = 5):
     """Fetch jobs from Adzuna and store new ones scoped to this session."""
     results = fetch_jobs(queries[:limit], results_per_page=50, max_pages=max_pages)
     count = 0

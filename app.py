@@ -108,56 +108,82 @@ def gemini_generate(prompt: str, temperature: float | None = None) -> str:
 
 def classify_industry(title: str, snippet: str = "") -> str:
     text = (title + " " + (snippet or "")).lower()
-    # Order: most specific first to prevent overlap
+    t    = title.lower()
+
+    # ── Pass 1: specific keyword matching ────────────────────────────────────
     if any(k in text for k in ["cybersecurity","cyber security","security engineer","security analyst",
-                                 "infosec","penetration test","soc analyst","threat intel","vulnerability"]):
+                                 "infosec","penetration test","soc analyst","threat intel","vulnerability",
+                                 "incident response","security operations","devsecops","appsec"]):
         return "Cybersecurity"
     if any(k in text for k in ["data scientist","data analyst","machine learning","ml engineer",
                                  "ai engineer","data engineer","analytics engineer","business intelligence",
                                  "bi analyst","nlp engineer","computer vision","quantitative analyst",
-                                 "quant analyst"]):
+                                 "quant analyst","data warehouse","etl engineer","reporting analyst",
+                                 "insights analyst","decision scientist","applied scientist","statistician"]):
         return "Data & Analytics"
-    if any(k in text for k in ["product manager","product owner","product analyst","product operations"]):
+    if any(k in text for k in ["product manager","product owner","product analyst","product operations",
+                                 "product lead","product strategist","vp of product"]):
         return "Product Management"
     if any(k in text for k in ["software engineer","software developer","backend","front-end","frontend",
                                  "full stack","fullstack","full-stack","web developer","ios developer",
                                  "android developer","mobile developer","react developer","python developer",
                                  "java developer","firmware","embedded","qa engineer","quality assurance",
-                                 "test engineer","software tester","automation engineer"]):
+                                 "test engineer","software tester","automation engineer","application developer",
+                                 "programmer","javascript developer","typescript developer","rails developer",
+                                 "golang developer","rust developer","php developer","node developer"]):
         return "Software Engineering"
     if any(k in text for k in ["devops","site reliability","sre ","cloud engineer","platform engineer",
                                  "infrastructure engineer","kubernetes","terraform","ci/cd",
-                                 "network engineer","linux admin","systems engineer","reliability engineer"]):
+                                 "network engineer","linux admin","systems engineer","reliability engineer",
+                                 "cloud architect","aws engineer","azure engineer","gcp engineer",
+                                 "solutions architect","cloud operations"]):
         return "DevOps & Cloud"
     if any(k in text for k in ["it support","help desk","helpdesk","technical support",
                                  "it administrator","sysadmin","sys admin","system administrator",
                                  "it technician","it specialist","desktop support","service desk",
-                                 "it coordinator","database administrator","dba "]):
+                                 "it coordinator","database administrator","dba ","network administrator",
+                                 "it analyst","it operations","managed services"]):
         return "IT Support"
     if any(k in text for k in ["mechanical engineer","electrical engineer","civil engineer",
                                  "aerospace engineer","chemical engineer","industrial engineer",
                                  "manufacturing engineer","materials engineer","structural engineer",
                                  "process engineer","hardware engineer","rfid","robotics engineer",
-                                 "controls engineer","systems integration"]):
+                                 "controls engineer","systems integration","field engineer",
+                                 "validation engineer","quality engineer","environmental engineer",
+                                 "geotechnical","surveyor","cad engineer","autocad"]):
         return "Engineering"
     if any(k in text for k in ["designer","ux designer","ui designer","ux/ui","user experience",
                                  "user interface","graphic design","visual design","product design",
-                                 "motion design","brand design","illustrator","animator","multimedia"]):
+                                 "motion design","brand design","illustrator","animator","multimedia",
+                                 "creative director","art director","web design","interaction design",
+                                 "figma","prototyp"]):
         return "Design"
-    if any(k in text for k in ["financial analyst","finance","accounting","investment banking",
-                                 "investment analyst","banking","hedge fund","audit","tax accountant",
+    if any(k in text for k in ["investment banking","investment analyst","hedge fund","tax accountant",
                                  "actuar","treasury","controller","bookkeep","cpa ","equity analyst",
-                                 "risk analyst","insurance analyst","underwriter","wealth management"]):
+                                 "risk analyst","insurance analyst","underwriter","wealth management",
+                                 "portfolio manager","fund manager","mortgage","lending","credit analyst",
+                                 "loan officer","fintech","financial advisor","financial planner",
+                                 "asset management","private equity","venture capital","securities",
+                                 "brokerage","accounting","audit","financial reporting","accounts payable",
+                                 "accounts receivable","payroll","budget analyst","banking",
+                                 "finance manager","finance analyst","financial operations",
+                                 "financial analyst","investment associate"]):
         return "Finance"
     if any(k in text for k in ["marketing","growth hacker","seo","sem ","social media",
                                  "content marketing","digital marketing","email marketing",
                                  "demand generation","paid media","performance marketing",
-                                 "community manager","brand ambassador","influencer","campaign"]):
+                                 "community manager","brand ambassador","influencer","campaign",
+                                 "marketing analyst","marketing manager","growth analyst",
+                                 "marketing coordinator","brand manager","advertising","media buyer"]):
         return "Marketing"
+    if any(k in text for k in ["management consultant","strategy consultant","business consultant",
+                                 "consulting analyst","associate consultant","senior consultant",
+                                 "management consulting","advisory analyst","advisory associate",
+                                 "strategic advisor","business advisor","consulting associate"]):
+        return "Consulting"
     if any(k in text for k in ["public relations","pr specialist","pr coordinator","communications specialist",
                                  "communications coordinator","communications manager","media relations",
-                                 "corporate communications","brand communications","press","spokesperson",
-                                 "external affairs"]):
+                                 "corporate communications","brand communications","press","spokesperson"]):
         return "Communications & PR"
     if any(k in text for k in ["technical writer","content writer","copywriter","content strategist",
                                  "content creator","editor","journalist","documentation","grant writer",
@@ -165,43 +191,110 @@ def classify_industry(title: str, snippet: str = "") -> str:
         return "Content & Writing"
     if any(k in text for k in ["sales","account executive","business development","account manager",
                                  "sales representative","sales engineer","solutions engineer",
-                                 "sales associate","retail","store associate","e-commerce","merchandis"]):
+                                 "sales associate","retail","store associate","e-commerce","merchandis",
+                                 "inside sales","outside sales","sales development","sdr ","bdr "]):
         return "Sales"
     if any(k in text for k in ["customer success","customer support","customer service",
                                  "client success","client support","customer experience",
-                                 "support specialist","support engineer","technical account","cx analyst"]):
+                                 "support specialist","support engineer","technical account","cx analyst",
+                                 "onboarding specialist","renewal manager","client manager"]):
         return "Customer Success"
     if any(k in text for k in ["healthcare","medical","clinical","nursing","pharma","biotech",
                                  "life sciences","lab technician","health informatics","patient care",
                                  "ehr ","epidemiolog","public health","physician","therapist","radiology",
-                                 "dental","hospital","health coach"]):
+                                 "dental","hospital","health coach","bioinformatics","genomics"]):
         return "Healthcare"
-    if any(k in text for k in ["research scientist","research analyst","research associate",
-                                 "research assistant","policy analyst","policy researcher","policy advisor",
+    if any(k in text for k in ["research scientist","policy analyst","policy researcher","policy advisor",
                                  "public policy","policy coordinator","research coordinator",
-                                 "social researcher","economic analyst","intelligence analyst"]):
+                                 "social researcher","economic analyst","intelligence analyst",
+                                 "quantitative research","market research","ux researcher","user researcher"]):
         return "Research & Policy"
     if any(k in text for k in ["teaching","teacher","tutor","instructor","curriculum","academic advisor",
                                  "education coordinator","instructional designer","learning specialist",
                                  "professor","lecturer","training coordinator","e-learning","edtech"]):
         return "Education"
-    if any(k in text for k in ["operations","project manager","program manager","supply chain",
-                                 "logistics","business analyst","scrum master","agile coach",
+    if any(k in text for k in ["supply chain","logistics","procurement","purchasing","warehouse",
+                                 "inventory manager","demand planner","fulfillment","distribution",
+                                 "sourcing","vendor management","import","export","freight","shipping"]):
+        return "Supply Chain"
+    if any(k in text for k in ["real estate","property manager","leasing","asset manager",
+                                 "commercial real estate","residential broker","apprais",
+                                 "facilities manager","facilities coordinator","building manager"]):
+        return "Real Estate"
+    if any(k in text for k in ["operations manager","project manager","program manager",
+                                 "business analyst","scrum master","agile coach","operations analyst",
                                  "process improvement","office manager","program coordinator",
                                  "project coordinator","event coordinator","administrative assistant",
                                  "executive assistant","office administrator","office coordinator",
-                                 "administrative coordinator","operations analyst","management analyst",
-                                 "strategy analyst","general manager","facility","coordinator"]):
+                                 "administrative coordinator","management analyst","strategy analyst",
+                                 "general manager","chief of staff","operations coordinator",
+                                 "business operations","revenue operations","revops"]):
         return "Operations"
     if any(k in text for k in ["human resources","recruiter","talent acquisition","people ops",
                                  "hr generalist","hr coordinator","hris","compensation","benefits",
-                                 "learning and development","l&d ","onboarding","workforce"]):
+                                 "learning and development","l&d ","onboarding","workforce",
+                                 "people analytics","talent management","employee relations"]):
         return "HR & Recruiting"
     if any(k in text for k in ["legal","attorney","paralegal","compliance","regulatory affairs",
                                  "counsel","contract manager","gdpr","privacy analyst","corporate law",
-                                 "litigation","intellectual property"]):
+                                 "litigation","intellectual property","contract analyst","risk management",
+                                 "regulatory analyst","aml ","kyc "]):
         return "Legal & Compliance"
+
+    # ── Pass 2: broad title-only fallbacks for generic roles ─────────────────
+    if any(k in t for k in ["developer","engineer","programmer","coder"]):
+        return "Software Engineering"
+    if any(k in t for k in ["data ","analytics","analyst","intelligence","reporting","insights","scientist"]):
+        return "Data & Analytics"
+    if any(k in t for k in ["finance","financial","accounting","investment","banking","audit","budget","tax"]):
+        return "Finance"
+    if any(k in t for k in ["marketing","growth","seo","content","social media","brand","advertising"]):
+        return "Marketing"
+    if any(k in t for k in ["design","designer","ui ","ux ","creative","visual","art director"]):
+        return "Design"
+    if any(k in t for k in ["consultant","consulting","advisory","advisor","strategy associate"]):
+        return "Consulting"
+    if any(k in t for k in ["sales","account executive","business development","revenue"]):
+        return "Sales"
+    if any(k in t for k in ["recruiter","talent","people ops","hr ","workforce"]):
+        return "HR & Recruiting"
+    if any(k in t for k in ["operations","project","program manager","coordinator","administrator","specialist"]):
+        return "Operations"
+
     return "Other"
+
+
+_VALID_INDUSTRIES = [
+    "Software Engineering", "Data & Analytics", "Finance", "Marketing",
+    "Operations", "Sales", "HR & Recruiting", "Design", "Consulting",
+    "DevOps & Cloud", "IT Support", "Engineering", "Healthcare",
+    "Legal & Compliance", "Customer Success", "Product Management",
+    "Supply Chain", "Real Estate", "Cybersecurity", "Education",
+    "Research & Policy", "Communications & PR", "Content & Writing",
+]
+
+def _llm_classify_industries(jobs_data: list[dict]) -> list[str]:
+    """Batch-classify job titles that keyword rules couldn't categorize."""
+    if not jobs_data or not os.getenv("GEMINI_API_KEY"):
+        return ["Operations"] * len(jobs_data)
+    items = "\n".join(
+        f'{i+1}. {d["title"]} | {(d.get("description_snippet") or "")[:120]}'
+        for i, d in enumerate(jobs_data)
+    )
+    prompt = (
+        f"Classify each job into exactly one of these industries:\n"
+        f"{', '.join(_VALID_INDUSTRIES)}\n\n"
+        f"Jobs (title | description snippet):\n{items}\n\n"
+        f"Return ONLY a JSON array of {len(jobs_data)} strings, one per job, same order. "
+        f'Example: ["Finance", "Software Engineering"]'
+    )
+    try:
+        result = json.loads(gemini_generate(prompt, temperature=0.1))
+        if isinstance(result, list) and len(result) == len(jobs_data):
+            return [r if r in _VALID_INDUSTRIES else "Operations" for r in result]
+    except Exception as e:
+        print(f"[classify] LLM batch failed: {e}")
+    return ["Operations"] * len(jobs_data)
 
 
 def calc_hire_probability(job: Job, skills: list[str], experience_level: str) -> int:
@@ -365,20 +458,29 @@ def clear_resume():
 
 
 def _refresh_jobs(queries: list[str], session_id: str, limit: int = 10, max_pages: int = 5):
-    """Fetch jobs from Adzuna and store new ones scoped to this session."""
+    """Fetch jobs from Adzuna, classify industries (keyword then LLM), store new ones."""
     results = fetch_jobs(queries[:limit], results_per_page=50, max_pages=max_pages)
-    count = 0
+
+    new_jobs: list[dict] = []
     for data in results:
         if Job.query.filter_by(url=data["url"], session_id=session_id).first():
             continue
         data["industry"]   = classify_industry(data.get("title", ""), data.get("description_snippet", ""))
         data["source"]     = "adzuna"
         data["session_id"] = session_id
-        job = Job(**{k: v for k, v in data.items() if hasattr(Job, k)})
-        db.session.add(job)
-        count += 1
+        new_jobs.append(data)
+
+    # Upgrade "Other" classifications via Gemini in a single batch call
+    other_idx = [i for i, d in enumerate(new_jobs) if d["industry"] == "Other"]
+    if other_idx:
+        classified = _llm_classify_industries([new_jobs[i] for i in other_idx])
+        for idx, industry in zip(other_idx, classified):
+            new_jobs[idx]["industry"] = industry
+
+    for data in new_jobs:
+        db.session.add(Job(**{k: v for k, v in data.items() if hasattr(Job, k)}))
     db.session.commit()
-    print(f"[refresh] Added {count} new jobs for session {session_id[:8]}")
+    print(f"[refresh] Added {len(new_jobs)} jobs ({len(other_idx)} LLM-classified) for session {session_id[:8]}")
 
 
 @app.route("/api/jobs")
@@ -952,8 +1054,6 @@ def export_csv():
     from flask import Response
     uid  = get_uid()
     jobs = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
-    if not jobs:
-        return jsonify({"error": "No jobs to export"}), 400
     profile = _active_profile()
     skills  = _load_json(profile.skills) if profile else []
     exp     = profile.experience_level or "" if profile else ""

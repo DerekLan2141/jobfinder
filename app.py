@@ -794,7 +794,7 @@ def salary_prediction():
     all_roles = ["engineer","scientist","manager","analyst","designer","consultant","other"]
 
     feat_names = (
-        ["seniority", "is_remote"] +
+        ["numeric:seniority", "numeric:is_remote"] +
         [f"role:{r}"     for r in all_roles] +
         [f"industry:{i}" for i in all_inds]  +
         [f"location:{l}" for l in all_locs]

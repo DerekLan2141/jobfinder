@@ -127,7 +127,10 @@
 
 <header>
   <h1>📊 JobFinder — Analytics Dashboard</h1>
-  <a class="back-btn" href="/">← Back to Jobs</a>
+  <div style="display:flex;gap:0.6rem;align-items:center">
+    <a class="back-btn" href="/api/export/csv" download style="border-color:#059669;color:#6ee7b7">⬇ Export CSV</a>
+    <a class="back-btn" href="/">← Back to Jobs</a>
+  </div>
 </header>
 
 <div class="tab-bar">
@@ -197,6 +200,14 @@
         <table class="data-table">
           <thead><tr id="mktHeatHead"></tr></thead>
           <tbody id="mktHeatBody"></tbody>
+        </table>
+      </div>
+      <h2 style="margin-bottom:0.75rem">Salary Hotspots — Best Paying Industry × Location</h2>
+      <p style="font-size:0.73rem;color:var(--gray-500);margin-bottom:0.75rem">Top combinations by average salary from jobs with listed pay</p>
+      <div class="table-wrap" style="margin-bottom:1.5rem">
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Industry</th><th>Location</th><th>Avg Salary</th><th>Jobs</th></tr></thead>
+          <tbody id="hotspotTable"></tbody>
         </table>
       </div>
       <h2 style="margin-bottom:0.75rem">Market Insights</h2>
@@ -459,10 +470,11 @@ async function loadMarket() {
   const loc = market.location_density  || {};
   const sal = market.domain_avg_salary || {};
 
-  const topInd  = Object.entries(ind).sort((a,b)=>b[1]-a[1])[0];
-  const topLoc  = Object.entries(loc).sort((a,b)=>b[1]-a[1])[0];
-  const topPay  = Object.entries(sal).sort((a,b)=>b[1]-a[1])[0];
+  const topInd   = Object.entries(ind).sort((a,b)=>b[1]-a[1])[0];
+  const topLoc   = Object.entries(loc).sort((a,b)=>b[1]-a[1])[0];
+  const topPay   = Object.entries(sal).sort((a,b)=>b[1]-a[1])[0];
   const otherPct = ind["Other"] ? Math.round(ind["Other"] / stats.total_jobs * 100) : 0;
+  const hotspot  = (market.top_salary_combos || [])[0];
 
   document.getElementById("marketPulse").innerHTML = `
     <div class="stat-card">
@@ -476,19 +488,19 @@ async function loadMarket() {
       <div class="stat-sub">${topLoc?.[1]||0} jobs</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Highest Paying</div>
-      <div class="stat-value" style="font-size:1.3rem">${topPay?.[0]||"—"}</div>
+      <div class="stat-label">Best Paying Industry</div>
+      <div class="stat-value" style="font-size:1.1rem">${topPay?.[0]||"—"}</div>
       <div class="stat-sub">$${topPay?Math.round(topPay[1]/1000)+"k avg":"—"}</div>
     </div>
-    <div class="stat-card">
-      <div class="stat-label">Sectors Found</div>
-      <div class="stat-value">${Object.keys(ind).length}</div>
-      <div class="stat-sub">${otherPct}% unclassified</div>
+    <div class="stat-card" style="border-top:2.5px solid #059669">
+      <div class="stat-label">🏆 Best Combo</div>
+      <div class="stat-value" style="font-size:0.95rem;color:#065f46">${hotspot?hotspot.industry+" · "+hotspot.location:"—"}</div>
+      <div class="stat-sub" style="color:#059669">${hotspot?"$"+Math.round(hotspot.avg_salary/1000)+"k avg":""}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Total Listings</div>
       <div class="stat-value">${stats.total_jobs}</div>
-      <div class="stat-sub">active in session</div>
+      <div class="stat-sub">${otherPct}% unclassified</div>
     </div>`;
 
   // ── Industry demand (horizontal bar) ──
@@ -527,6 +539,24 @@ async function loadMarket() {
     return `<tr><td><strong>${k}</strong></td>${cells.join("")}<td style="font-weight:700;color:var(--navy)">${total}</td></tr>`;
   }).join("");
 
+  // ── Salary hotspots ──
+  const combos = market.top_salary_combos || [];
+  const hotBody = document.getElementById("hotspotTable");
+  if (combos.length) {
+    hotBody.innerHTML = combos.map((c,i)=>{
+      const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":"";
+      return `<tr>
+        <td style="font-weight:700;color:var(--gray-500)">${medal||i+1}</td>
+        <td><strong>${c.industry}</strong></td>
+        <td>${c.location}</td>
+        <td style="font-weight:700;color:var(--green)">$${Math.round(c.avg_salary/1000)}k/yr</td>
+        <td style="color:var(--gray-500)">${c.count} job${c.count!==1?"s":""}</td>
+      </tr>`;
+    }).join("");
+  } else {
+    hotBody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--gray-500);padding:1.5rem">Not enough jobs with salary data and location info to compute hotspots.</td></tr>`;
+  }
+
   // ── Insights ──
   const compInds = Object.entries(ind).filter(([k])=>k!=="Other").sort((a,b)=>b[1]-a[1]);
   const remoteJobs = Object.entries(loc).filter(([k])=>/remote/i.test(k)).reduce((s,[,v])=>s+v,0);
@@ -536,6 +566,7 @@ async function loadMarket() {
     <strong>📌 Top demand sector:</strong> ${compInds[0]?.[0]||"—"} leads with ${compInds[0]?.[1]||0} listings (${compInds[0]?Math.round(compInds[0][1]/stats.total_jobs*100):0}% of market)<br>
     <strong>📌 Runner-up:</strong> ${compInds[1]?.[0]||"—"} with ${compInds[1]?.[1]||0} listings<br>
     <strong>📌 Best paying sector:</strong> ${topPay?.[0]||"—"} averaging $${topPay?Math.round(topPay[1]/1000)+"k":"—"}/year based on listed salaries<br>
+    ${hotspot ? `<strong>🏆 Highest-paying combo:</strong> ${hotspot.industry} jobs in ${hotspot.location} average $${Math.round(hotspot.avg_salary/1000)}k/yr (${hotspot.count} listing${hotspot.count!==1?"s":""})<br>` : ""}
     <strong>📌 Remote opportunities:</strong> ${remotePct}% of listings are remote or hybrid<br>
     <strong>📌 Salary transparency:</strong> ${salCovPct}% of jobs list a salary — the rest can be predicted by the Salary Analysis model<br>
     <strong>📌 Geographic concentration:</strong> ${topLoc?.[0]||"—"} has the most listings (${topLoc?.[1]||0} jobs), suggesting strong regional demand`;

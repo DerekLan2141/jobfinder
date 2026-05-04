@@ -9,7 +9,7 @@ class Job(db.Model):
     title               = db.Column(db.String(200), nullable=False)
     company             = db.Column(db.String(200), nullable=False)
     location            = db.Column(db.String(200))
-    url                 = db.Column(db.String(500), unique=True, nullable=False)
+    url                 = db.Column(db.String(500), nullable=False)
     source              = db.Column(db.String(50), default="adzuna")
     description_snippet = db.Column(db.Text)
     date_posted         = db.Column(db.String(100))
@@ -23,6 +23,10 @@ class Job(db.Model):
     ai_description      = db.Column(db.Text)
     ai_salary_estimate  = db.Column(db.String(200))
     cv_guide            = db.Column(db.Text)
+
+    __table_args__ = (
+        db.UniqueConstraint('url', 'session_id', name='uq_job_url_session'),
+    )
 
     def to_dict(self, match_score=None):
         d = {

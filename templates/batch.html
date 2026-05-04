@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobFinder — Batch Resume Test</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy:#1a1a2e; --indigo:#4f46e5; --indigo-dark:#4338ca; --indigo-light:#eef2ff;
+      --gray-50:#f9fafb; --gray-100:#f3f4f6; --gray-200:#e5e7eb; --gray-300:#d1d5db;
+      --gray-500:#6b7280; --gray-700:#374151; --gray-900:#111827;
+      --green:#059669; --green-bg:#d1fae5; --red:#dc2626;
+    }
+    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+           background:var(--gray-100); color:var(--gray-900); font-size:14px; min-height:100vh; }
+
+    header { background:var(--navy); padding:1rem 2rem; display:flex; align-items:center; justify-content:space-between; }
+    header h1 { color:#fff; font-size:1.3rem; font-weight:800; }
+    .back-btn { color:#a5b4fc; font-size:0.85rem; text-decoration:none; border:1px solid #4f46e5;
+                padding:0.35rem 0.9rem; border-radius:20px; transition:all .15s; }
+    .back-btn:hover { background:#4f46e5; color:#fff; }
+
+    .page { max-width:1100px; margin:0 auto; padding:1.5rem 2rem 3rem; }
+    h2 { font-size:1rem; font-weight:700; color:var(--navy); margin-bottom:0.75rem; }
+
+    .info-box { background:var(--indigo-light); border:1.5px solid #c7d2fe; border-radius:10px;
+                padding:1rem 1.2rem; margin-bottom:1.5rem; font-size:0.82rem; line-height:1.65; color:var(--gray-700); }
+    .info-box strong { color:var(--navy); }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2.5px dashed var(--gray-300);
+      border-radius: 12px;
+      background: #fff;
+      padding: 2.5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      margin-bottom: 1.5rem;
+    }
+    .upload-zone:hover, .upload-zone.dragover { border-color: var(--indigo); background: var(--indigo-light); }
+    .upload-zone-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    .upload-zone h3 { font-size: 1rem; color: var(--navy); margin-bottom: 0.3rem; }
+    .upload-zone p  { font-size: 0.8rem; color: var(--gray-500); }
+    #batchInput { display: none; }
+
+    .file-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; min-height: 0; }
+    .file-chip {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: var(--indigo-light); color: var(--indigo);
+      border: 1px solid #c7d2fe; border-radius: 20px;
+      padding: 0.22rem 0.7rem; font-size: 0.78rem; font-weight: 600;
+    }
+    .file-chip button { background: none; border: none; color: inherit; cursor: pointer; font-size: 0.8rem; opacity: 0.7; padding: 0; line-height: 1; }
+    .file-chip button:hover { opacity: 1; }
+
+    .btn-primary {
+      padding: 0.65rem 1.75rem;
+      background: var(--indigo);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-primary:hover { background: var(--indigo-dark); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .spinner { display:inline-block; width:16px; height:16px; border:2.5px solid rgba(255,255,255,.4);
+               border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:0.4rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-msg { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5;
+                 border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem; font-size:0.82rem; }
+
+    /* Results */
+    #resultsSection { display: none; }
+
+    .results-controls {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;
+    }
+
+    .badge { display:inline-flex; align-items:center; padding:0.22rem 0.7rem; border-radius:20px;
+             font-size:0.75rem; font-weight:600; }
+    .badge-indigo { background:var(--indigo-light); color:var(--indigo); }
+    .badge-green  { background:var(--green-bg); color:var(--green); }
+    .badge-red    { background:#fee2e2; color:#991b1b; }
+
+    /* Comparison cards grid */
+    .compare-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+
+    .resume-card {
+      background: #fff;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .resume-card.has-error { border-color: #fca5a5; }
+
+    .rc-header {
+      background: var(--navy);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .rc-filename { color: #fff; font-weight: 700; font-size: 0.85rem; flex: 1; min-width: 0;
+                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rc-exp { padding: 0.18rem 0.55rem; border-radius: 12px; font-size: 0.7rem; font-weight: 700;
+              background: rgba(255,255,255,.15); color: #e0e7ff; }
+
+    .rc-body { padding: 0.85rem 1rem; }
+    .rc-summary { font-size: 0.8rem; color: var(--gray-700); line-height: 1.55; margin-bottom: 0.75rem;
+                  padding-bottom: 0.75rem; border-bottom: 1px solid var(--gray-100); }
+    .rc-meta { font-size: 0.73rem; color: var(--gray-500); margin-bottom: 0.1rem; }
+    .rc-meta strong { color: var(--gray-700); }
+
+    .rc-section { margin-top: 0.65rem; }
+    .rc-label { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+                color: var(--gray-500); margin-bottom: 0.35rem; }
+    .tag-wrap { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .tag { background: var(--gray-100); color: var(--gray-700); font-size: 0.7rem;
+           padding: 0.12rem 0.45rem; border-radius: 10px; border: 1px solid var(--gray-200); }
+    .tag-green { background: var(--green-bg); color: #065f46; border-color: #a7f3d0; }
+    .tag-red   { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+    /* Comparison table */
+    .table-wrap { background:#fff; border-radius:10px; border:1.5px solid var(--gray-200); overflow:hidden; }
+    .data-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+    .data-table th { background:var(--gray-50); color:var(--gray-700); font-weight:700;
+                     padding:0.5rem 0.75rem; text-align:left; border-bottom:1px solid var(--gray-200); }
+    .data-table td { padding:0.5rem 0.75rem; border-bottom:1px solid var(--gray-100); vertical-align:top; }
+    .data-table tr:hover td { background:var(--gray-50); }
+    .data-table tr:last-child td { border-bottom: none; }
+
+    .exp-badge { display:inline-block; padding:0.12rem 0.5rem; border-radius:12px; font-size:0.7rem; font-weight:700; }
+    .exp-senior  { background:#fef3c7; color:#92400e; }
+    .exp-mid     { background:#dbeafe; color:#1e40af; }
+    .exp-junior  { background:var(--green-bg); color:#065f46; }
+    .exp-entry   { background:#ede9fe; color:#5b21b6; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🧪 JobFinder — Batch Resume Testing</h1>
+  <a class="back-btn" href="/">← Back to Jobs</a>
+</header>
+
+<div class="page">
+
+  <div class="info-box">
+    <strong>What this does:</strong> Upload up to 10 resumes at once. Gemini parses each one and returns a structured
+    profile — skills, experience level, strengths, gaps, and target industries. Use this to compare candidates, test how
+    the model reads different resume formats, or evaluate your resume against peers.
+    No job searches are run — this is pure profile extraction and comparison.
+  </div>
+
+  <h2>Upload Resumes (PDF only, max 10)</h2>
+
+  <div class="upload-zone" id="uploadZone">
+    <div class="upload-zone-icon">📂</div>
+    <h3>Drop PDFs here or click to browse</h3>
+    <p>Select multiple files at once — up to 10 PDFs</p>
+    <input type="file" id="batchInput" accept=".pdf" multiple />
+  </div>
+
+  <div class="file-list" id="fileList"></div>
+
+  <div id="uploadError"></div>
+
+  <button class="btn-primary" id="runBtn" disabled>Analyze Resumes</button>
+
+  <div id="resultsSection">
+    <hr style="margin:2rem 0;border:none;border-top:1px solid var(--gray-200)" />
+
+    <div class="results-controls">
+      <h2 style="margin:0">Results</h2>
+      <div style="display:flex;gap:0.5rem;align-items:center">
+        <span class="badge badge-indigo" id="resultCount"></span>
+        <button class="btn-primary" id="downloadJsonBtn" style="padding:0.35rem 1rem;font-size:0.8rem">⬇ Download JSON</button>
+      </div>
+    </div>
+
+    <div class="compare-grid" id="compareGrid"></div>
+
+    <h2 style="margin-bottom:0.75rem">Side-by-Side Comparison</h2>
+    <div class="table-wrap" style="margin-bottom:1.5rem;overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Resume</th><th>Experience</th><th>Years</th><th>Education</th><th>Skills Count</th><th>Top Industries</th></tr></thead>
+        <tbody id="compareTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let selectedFiles = [];
+let lastResults   = [];
+
+const uploadZone  = document.getElementById("uploadZone");
+const batchInput  = document.getElementById("batchInput");
+const fileList    = document.getElementById("fileList");
+const runBtn      = document.getElementById("runBtn");
+const uploadError = document.getElementById("uploadError");
+
+uploadZone.addEventListener("click", () => batchInput.click());
+
+uploadZone.addEventListener("dragover", e => { e.preventDefault(); uploadZone.classList.add("dragover"); });
+uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("dragover"));
+uploadZone.addEventListener("drop", e => {
+  e.preventDefault();
+  uploadZone.classList.remove("dragover");
+  addFiles([...e.dataTransfer.files]);
+});
+
+batchInput.addEventListener("change", e => {
+  addFiles([...e.target.files]);
+  batchInput.value = "";
+});
+
+function addFiles(files) {
+  uploadError.innerHTML = "";
+  for (const f of files) {
+    if (!f.name.toLowerCase().endsWith(".pdf")) continue;
+    if (selectedFiles.length >= 10) break;
+    if (!selectedFiles.find(x => x.name === f.name && x.size === f.size))
+      selectedFiles.push(f);
+  }
+  renderFileList();
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderFileList();
+}
+
+function renderFileList() {
+  fileList.innerHTML = selectedFiles.map((f, i) => `
+    <span class="file-chip">📄 ${f.name}
+      <button onclick="removeFile(${i})">×</button>
+    </span>
+  `).join("");
+  runBtn.disabled = selectedFiles.length === 0;
+}
+
+runBtn.addEventListener("click", async () => {
+  if (!selectedFiles.length) return;
+  uploadError.innerHTML = "";
+  runBtn.disabled = true;
+  runBtn.innerHTML = '<span class="spinner"></span> Analyzing...';
+
+  const fd = new FormData();
+  selectedFiles.forEach(f => fd.append("resumes", f));
+
+  try {
+    const res  = await fetch("/api/batch/upload", { method: "POST", body: fd });
+    const data = await res.json();
+
+    if (data.error) {
+      uploadError.innerHTML = `<div class="error-msg">${data.error}</div>`;
+      return;
+    }
+
+    lastResults = data.results || [];
+    renderResults(lastResults);
+    document.getElementById("resultsSection").style.display = "";
+    document.getElementById("resultsSection").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    uploadError.innerHTML = `<div class="error-msg">Request failed: ${e.message}</div>`;
+  } finally {
+    runBtn.disabled = false;
+    runBtn.innerHTML = "Analyze Resumes";
+  }
+});
+
+document.getElementById("downloadJsonBtn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(lastResults, null, 2)], { type: "application/json" });
+  const a    = document.createElement("a");
+  a.href     = URL.createObjectURL(blob);
+  a.download = "batch_profiles.json";
+  a.click();
+});
+
+function expClass(level) {
+  const l = (level || "").toLowerCase();
+  if (l === "senior")        return "exp-senior";
+  if (l === "mid")           return "exp-mid";
+  if (l === "junior")        return "exp-junior";
+  if (l.includes("entry"))   return "exp-entry";
+  return "exp-entry";
+}
+
+function renderResults(results) {
+  const ok  = results.filter(r => !r.error);
+  const err = results.filter(r => r.error);
+  document.getElementById("resultCount").textContent =
+    `${ok.length} parsed${err.length ? ` · ${err.length} failed` : ""}`;
+
+  // Cards
+  document.getElementById("compareGrid").innerHTML = results.map(r => {
+    if (r.error) return `
+      <div class="resume-card has-error">
+        <div class="rc-header"><span class="rc-filename">${r.filename}</span></div>
+        <div class="rc-body"><div style="color:#991b1b;font-size:0.82rem">⚠ ${r.error}</div></div>
+      </div>`;
+
+    const skills    = r.skills || [];
+    const strengths = r.strengths || [];
+    const gaps      = r.gaps || [];
+    const industries= r.top_industries || [];
+
+    return `
+      <div class="resume-card">
+        <div class="rc-header">
+          <span class="rc-filename">${r.filename}</span>
+          <span class="rc-exp">${r.experience_level || "?"}</span>
+        </div>
+        <div class="rc-body">
+          <div class="rc-summary">${r.summary || "—"}</div>
+          <div class="rc-meta"><strong>Education:</strong> ${r.education || "—"}</div>
+          <div class="rc-meta"><strong>Est. Experience:</strong> ${r.years_of_experience || "—"} yrs</div>
+          <div class="rc-meta"><strong>Industries:</strong> ${industries.join(", ") || "—"}</div>
+          <div class="rc-section">
+            <div class="rc-label">Top Skills (${skills.length})</div>
+            <div class="tag-wrap">${skills.slice(0,12).map(s=>`<span class="tag">${s}</span>`).join("")}
+              ${skills.length>12?`<span class="tag" style="color:var(--gray-500)">+${skills.length-12} more</span>`:""}
+            </div>
+          </div>
+          <div class="rc-section">
+            <div class="rc-label">Strengths</div>
+            <div class="tag-wrap">${strengths.map(s=>`<span class="tag tag-green">✓ ${s}</span>`).join("")}</div>
+          </div>
+          <div class="rc-section">
+            <div class="rc-label">Gaps</div>
+            <div class="tag-wrap">${gaps.map(g=>`<span class="tag tag-red">✗ ${g}</span>`).join("")}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  // Comparison table
+  document.getElementById("compareTable").innerHTML = ok.map(r => `
+    <tr>
+      <td><strong>${r.filename}</strong></td>
+      <td><span class="exp-badge ${expClass(r.experience_level)}">${r.experience_level || "?"}</span></td>
+      <td>${r.years_of_experience || "—"}</td>
+      <td>${r.education || "—"}</td>
+      <td style="text-align:center;font-weight:700;color:var(--indigo)">${(r.skills||[]).length}</td>
+      <td>${(r.top_industries||[]).join(", ") || "—"}</td>
+    </tr>
+  `).join("");
+}
+</script>
+</body>
+</html>

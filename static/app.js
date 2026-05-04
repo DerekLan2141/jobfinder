@@ -117,6 +117,14 @@ function renderJobs(jobs) {
       }`;
     }
 
+    // Hire probability
+    if (job.hire_probability !== undefined) {
+      const hireEl = card.querySelector(".card-hire");
+      const hp = job.hire_probability;
+      hireEl.textContent = `~${hp}% hire est.`;
+      hireEl.className = `card-hire ${hp >= 55 ? "hire-high" : hp >= 35 ? "hire-mid" : "hire-low"}`;
+    }
+
     // Save button
     const saveBtn = card.querySelector(".btn-save");
     saveBtn.innerHTML = job.is_saved ? "&#9829;" : "&#9825;";
@@ -508,6 +516,42 @@ document.getElementById("refreshBtn").addEventListener("click", async function (
   }
 });
 
+// ── Settings (temperature) ─────────────────────────────────────────────────
+const settingsBtn      = document.getElementById("settingsBtn");
+const settingsDropdown = document.getElementById("settingsDropdown");
+
+settingsBtn.addEventListener("click", e => {
+  e.stopPropagation();
+  settingsDropdown.classList.toggle("hidden");
+});
+
+document.addEventListener("click", e => {
+  if (!settingsDropdown.contains(e.target) && e.target !== settingsBtn)
+    settingsDropdown.classList.add("hidden");
+});
+
+document.querySelectorAll('input[name="temperature"]').forEach(radio => {
+  radio.addEventListener("change", async () => {
+    const saved = document.getElementById("settingsSaved");
+    await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ temperature: parseFloat(radio.value) }),
+    });
+    saved.style.display = "block";
+    setTimeout(() => { saved.style.display = "none"; }, 1800);
+  });
+});
+
+async function loadSettings() {
+  try {
+    const data = await (await fetch("/api/settings")).json();
+    const t    = String(data.temperature);
+    const radio = document.querySelector(`input[name="temperature"][value="${t}"]`);
+    if (radio) radio.checked = true;
+  } catch {}
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
   // Check if a profile already exists on the server (e.g. from a previous session)
@@ -525,3 +569,4 @@ async function init() {
 }
 
 init();
+loadSettings();

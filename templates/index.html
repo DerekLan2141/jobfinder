@@ -15,7 +15,19 @@
         <p class="subtitle">Resume-matched jobs from Adzuna</p>
       </div>
       <div class="header-actions">
+        <a class="btn-dashboard" href="/batch" target="_blank">🧪 Batch Test</a>
         <a class="btn-dashboard" href="/dashboard" target="_blank">📊 Dashboard</a>
+        <div class="settings-wrap">
+          <button class="btn-settings" id="settingsBtn" title="AI Model Settings">⚙️</button>
+          <div class="settings-dropdown hidden" id="settingsDropdown">
+            <div class="settings-title">AI Precision</div>
+            <div class="settings-desc">Controls how deterministic vs. creative Gemini is when parsing resumes and generating suggestions.</div>
+            <label class="setting-opt"><input type="radio" name="temperature" value="0.1"> <div><span>Precise</span><span class="opt-sub">Structured, consistent output</span></div></label>
+            <label class="setting-opt"><input type="radio" name="temperature" value="0.7" checked> <div><span>Balanced</span><span class="opt-sub">Default — good mix</span></div></label>
+            <label class="setting-opt"><input type="radio" name="temperature" value="1.3"> <div><span>Creative</span><span class="opt-sub">More varied, exploratory</span></div></label>
+            <div id="settingsSaved" style="font-size:0.72rem;color:#059669;text-align:center;display:none;padding-top:0.4rem">✓ Saved</div>
+          </div>
+        </div>
         <label class="btn-resume" id="resumeLabel" for="resumeInput">📄 Upload Resume</label>
         <input type="file" id="resumeInput" accept=".pdf" style="display:none" />
         <button class="resume-clear hidden" id="resumeClear">&#10005; Clear Resume</button>
@@ -42,6 +54,7 @@
     </div>
     <div style="display:flex;gap:0.5rem;flex-shrink:0">
       <button class="btn-outline" id="viewResumeBtn">📄 View Resume</button>
+      <a class="btn-outline" id="exportBtn" href="/api/export/csv" download>⬇ Export CSV</a>
       <button class="btn-secondary" id="refreshBtn">&#8635; Refresh Jobs</button>
     </div>
   </div>
@@ -89,6 +102,7 @@
         <span class="card-salary"></span>
         <span class="card-industry hidden"></span>
         <span class="card-match hidden"></span>
+        <span class="card-hire hidden"></span>
       </div>
       <div class="card-snippet"></div>
       <button class="btn-cv-guide">📝 CV Guide</button>

@@ -848,6 +848,75 @@ header .subtitle {
   text-align: center;
 }
 
+/* ── Hire probability badge ───────────────────────────────────────────────── */
+.card-hire {
+  font-size: 0.7rem; font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 12px;
+}
+.hire-high { background: #d1fae5; color: #065f46; }
+.hire-mid  { background: #fef3c7; color: #92400e; }
+.hire-low  { background: #fee2e2; color: #991b1b; }
+
+/* ── Settings dropdown ────────────────────────────────────────────────────── */
+.settings-wrap { position: relative; }
+
+.btn-settings {
+  padding: 0.3rem 0.55rem;
+  border: 1.5px solid rgba(165,180,252,.4);
+  border-radius: 8px;
+  background: none;
+  color: #a5b4fc;
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: all .15s;
+}
+.btn-settings:hover { border-color: #a5b4fc; background: rgba(165,180,252,.1); }
+
+.settings-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  background: #fff;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  z-index: 300;
+  padding: 1rem;
+}
+
+.settings-title {
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--navy);
+  margin-bottom: 0.4rem;
+}
+
+.settings-desc {
+  font-size: 0.73rem;
+  color: var(--gray-500);
+  line-height: 1.5;
+  margin-bottom: 0.85rem;
+}
+
+.setting-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .12s;
+  margin-bottom: 0.25rem;
+}
+.setting-opt:hover { background: var(--gray-50); }
+.setting-opt input[type="radio"] { margin-top: 2px; accent-color: var(--indigo); }
+.setting-opt > div { display: flex; flex-direction: column; }
+.setting-opt span:first-child { font-size: 0.82rem; font-weight: 600; color: var(--gray-900); }
+.opt-sub { font-size: 0.71rem; color: var(--gray-500); margin-top: 1px; }
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   header { padding: 1rem; position: static; }

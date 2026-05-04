@@ -54,6 +54,23 @@ with app.app_context():
                 ))
             except Exception:
                 pass
+        # Drop old global unique constraint on url (breaks multi-user: same URL
+        # from Adzuna can't be stored for two different sessions)
+        for _stmt in [
+            "ALTER TABLE job DROP CONSTRAINT IF EXISTS job_url_key",
+            "ALTER TABLE job DROP CONSTRAINT IF EXISTS uq_job_url_session",
+            "DROP INDEX IF EXISTS uq_job_url_session",
+        ]:
+            try:
+                _conn.execute(db.text(_stmt))
+            except Exception:
+                pass
+        try:
+            _conn.execute(db.text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_job_url_session ON job (url, session_id)"
+            ))
+        except Exception:
+            pass
         _conn.commit()
 
 
@@ -71,8 +88,17 @@ def gemini_client():
     return _gemini_client
 
 
-def gemini_generate(prompt: str) -> str:
-    response = gemini_client().models.generate_content(model=GEMINI_MODEL, contents=prompt)
+def gemini_generate(prompt: str, temperature: float | None = None) -> str:
+    from google.genai import types as _gtypes
+    if temperature is None:
+        try:
+            temperature = session.get("gemini_temperature", 0.7)
+        except RuntimeError:
+            temperature = 0.7
+    cfg = _gtypes.GenerateContentConfig(temperature=float(temperature))
+    response = gemini_client().models.generate_content(
+        model=GEMINI_MODEL, contents=prompt, config=cfg
+    )
     text = response.text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
@@ -177,6 +203,31 @@ def classify_industry(title: str, snippet: str = "") -> str:
                                  "litigation","intellectual property"]):
         return "Legal & Compliance"
     return "Other"
+
+
+def calc_hire_probability(job: Job, skills: list[str], experience_level: str) -> int:
+    """Estimates probability (0-88%) that candidate passes initial screening for this job.
+    Directionally different from match_score: measures what % of JOB requirements the candidate covers."""
+    if not skills:
+        return 40
+    job_text = " ".join(filter(None, [job.title, job.description_snippet or ""])).lower()
+    skills_lower = [s.lower() for s in skills]
+    hits = sum(1 for s in skills_lower if s in job_text)
+    coverage = hits / len(skills_lower)
+    base = 20 + round(coverage * 60)
+    title_lower = job.title.lower()
+    is_senior_job = any(w in title_lower for w in
+                        ["senior", "lead", "principal", "staff", "head", "director", "vp", "manager"])
+    is_entry_job  = any(w in title_lower for w in
+                        ["junior", "entry", "associate", "intern", "graduate", "assistant"])
+    exp = (experience_level or "").lower()
+    if is_senior_job and exp in ("entry", "junior"):
+        base -= 18
+    elif is_entry_job and exp in ("senior", "mid"):
+        base += 8
+    elif is_senior_job and exp in ("senior", "mid"):
+        base += 6
+    return max(5, min(88, base))
 
 
 def calc_match_score(job: Job, skills: list[str], titles: list[str]) -> int:
@@ -366,9 +417,16 @@ def get_jobs():
     if profile:
         skills = _load_json(profile.skills)
         titles = _load_json(profile.job_titles)
-        scored = [(j, calc_match_score(j, skills, titles)) for j in jobs]
+        exp    = profile.experience_level or ""
+        scored = [
+            (j, calc_match_score(j, skills, titles), calc_hire_probability(j, skills, exp))
+            for j in jobs
+        ]
         scored.sort(key=lambda x: x[1], reverse=True)
-        return jsonify([j.to_dict(match_score=s) for j, s in scored])
+        return jsonify([
+            {**j.to_dict(match_score=s), "hire_probability": hp}
+            for j, s, hp in scored
+        ])
 
     return jsonify([j.to_dict() for j in jobs])
 
@@ -719,6 +777,23 @@ def dashboard_market():
         for ind, vals in domain_salary.items() if vals
     }
 
+    # Best paying (industry, location) combos
+    ind_loc_salary = {}
+    for job in jobs:
+        if job.salary and job.industry and job.location:
+            nums = [int(n.replace(",", "")) for n in num_re.findall(job.salary)]
+            if nums:
+                key = (job.industry, job.location)
+                ind_loc_salary.setdefault(key, []).append(sum(nums) / len(nums))
+
+    top_salary_combos = sorted(
+        [{"industry": k[0], "location": k[1],
+          "avg_salary": round(sum(v) / len(v)), "count": len(v)}
+         for k, v in ind_loc_salary.items()],
+        key=lambda x: x["avg_salary"],
+        reverse=True,
+    )[:12]
+
     # Location job density
     loc_counts = {}
     for job in jobs:
@@ -738,6 +813,7 @@ def dashboard_market():
         "domain_avg_salary": domain_avg_salary,
         "location_density":  dict(top_locs),
         "industry_location": ind_loc,
+        "top_salary_combos": top_salary_combos,
     })
 
 
@@ -869,6 +945,113 @@ def dashboard_clusters():
         "silhouette_score": round(best_sil, 3),
         "inertia":          round(float(best_km.inertia_), 1),
     })
+
+
+@app.route("/api/export/csv")
+def export_csv():
+    import csv, io as _io
+    from flask import Response
+    uid  = get_uid()
+    jobs = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
+    if not jobs:
+        return jsonify({"error": "No jobs to export"}), 400
+    profile = _active_profile()
+    skills  = _load_json(profile.skills) if profile else []
+    exp     = profile.experience_level or "" if profile else ""
+    out = _io.StringIO()
+    w   = csv.writer(out)
+    w.writerow([
+        "title", "company", "location", "industry", "salary",
+        "match_score", "hire_probability", "url",
+        "date_posted", "source", "is_saved", "notes",
+    ])
+    for j in jobs:
+        ms = calc_match_score(j, skills, _load_json(profile.job_titles) if profile else []) if profile else ""
+        hp = calc_hire_probability(j, skills, exp) if profile else ""
+        w.writerow([
+            j.title, j.company, j.location, j.industry, j.salary,
+            ms, hp, j.url, j.date_posted, j.source, j.is_saved, j.notes or "",
+        ])
+    out.seek(0)
+    return Response(
+        out.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=jobfinder_jobs.csv"},
+    )
+
+
+@app.route("/api/settings", methods=["GET", "POST"])
+def settings():
+    if request.method == "GET":
+        return jsonify({"temperature": session.get("gemini_temperature", 0.7)})
+    data = request.json or {}
+    temp = data.get("temperature")
+    if temp is not None:
+        try:
+            t = float(temp)
+            if not (0.0 <= t <= 2.0):
+                raise ValueError
+            session["gemini_temperature"] = t
+            session.modified = True
+        except (ValueError, TypeError):
+            return jsonify({"error": "temperature must be 0.0–2.0"}), 400
+    return jsonify({"success": True, "temperature": session.get("gemini_temperature", 0.7)})
+
+
+@app.route("/batch")
+def batch_page():
+    return render_template("batch.html")
+
+
+@app.route("/api/batch/upload", methods=["POST"])
+def batch_upload():
+    import pypdf, io as _io
+    files = request.files.getlist("resumes")
+    if not files or not files[0].filename:
+        return jsonify({"error": "No files uploaded"}), 400
+    if len(files) > 10:
+        return jsonify({"error": "Maximum 10 resumes per batch"}), 400
+    if not os.getenv("GEMINI_API_KEY"):
+        return jsonify({"error": "GEMINI_API_KEY not configured"}), 500
+
+    results = []
+    for file in files:
+        fname = file.filename or "unknown.pdf"
+        if not fname.lower().endswith(".pdf"):
+            results.append({"filename": fname, "error": "Not a PDF — skipped"})
+            continue
+        try:
+            reader = pypdf.PdfReader(_io.BytesIO(file.read()))
+            text   = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+            if not text:
+                results.append({"filename": fname, "error": "Could not extract text"})
+                continue
+
+            prompt = f"""Analyze this resume for a job-market comparison. Return ONLY valid JSON.
+
+Resume:
+{text[:6000]}
+
+Return exactly:
+{{
+  "skills": ["all technical skills, tools, languages, frameworks listed"],
+  "job_titles": ["held or targeted job titles"],
+  "experience_level": "entry/junior/mid/senior",
+  "education": "highest degree and field",
+  "years_of_experience": "estimated total years (number or range, e.g. '2-3')",
+  "summary": "1-2 sentence professional summary",
+  "top_industries": ["top 2-3 industries this person fits"],
+  "strengths": ["top 3 standout strengths from the resume"],
+  "gaps": ["top 2-3 skill gaps or weaknesses relative to tech/professional job market"]
+}}"""
+
+            data          = json.loads(gemini_generate(prompt, temperature=0.3))
+            data["filename"] = fname
+            results.append(data)
+        except Exception as e:
+            results.append({"filename": fname, "error": str(e)})
+
+    return jsonify({"results": results, "count": len(results)})
 
 
 if __name__ == "__main__":

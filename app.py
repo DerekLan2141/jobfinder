@@ -460,7 +460,7 @@ def clear_resume():
     return jsonify({"success": True})
 
 
-def _refresh_jobs(queries: list[str], session_id: str, limit: int = 10, max_pages: int = 8):
+def _refresh_jobs(queries: list[str], session_id: str, limit: int = 10, max_pages: int = 2):
     """Fetch jobs from Adzuna, classify industries (keyword then LLM), store new ones."""
     results = fetch_jobs(queries[:limit], results_per_page=50, max_pages=max_pages)
 
@@ -472,6 +472,11 @@ def _refresh_jobs(queries: list[str], session_id: str, limit: int = 10, max_page
         data["source"]     = "adzuna"
         data["session_id"] = session_id
         new_jobs.append(data)
+
+    # Cap total jobs per session at 200
+    existing = Job.query.filter_by(session_id=session_id, is_dismissed=False).count()
+    slots    = max(0, 200 - existing)
+    new_jobs = new_jobs[:slots]
 
     # Upgrade "Other" classifications via Gemini in a single batch call
     other_idx = [i for i, d in enumerate(new_jobs) if d["industry"] == "Other"]
@@ -731,7 +736,7 @@ def dashboard():
 
 @app.route("/api/dashboard/salary-prediction")
 def salary_prediction():
-    from sklearn.linear_model import LinearRegression
+    from sklearn.linear_model import Ridge
     from sklearn.model_selection import cross_val_score
     import numpy as np
 
@@ -752,23 +757,31 @@ def salary_prediction():
     if len(labeled) < 6:
         return jsonify({"error": f"Only {len(labeled)} jobs have salary data — need at least 6 to train. Try Refresh Jobs."}), 400
 
-    # ── Feature names & one-hot vectors ──────────────────────────────────
-    # Features: one binary flag per unique industry + one per unique location
+    # ── Features: industry (one-hot) + grouped location ──────────────────
+    # Keep only locations with ≥3 salary samples — rest become "Other"
+    from collections import Counter
+    loc_counts = Counter(j["job"].location or "Unknown" for j in labeled)
+    keep_locs  = {l for l, c in loc_counts.items() if c >= 3}
+
+    def group_loc(loc):
+        return loc if loc in keep_locs else "Other"
+
     all_inds  = sorted(set(j["job"].industry or "Other" for j in labeled))
-    all_locs  = sorted(set(j["job"].location or "Unknown" for j in labeled))
+    all_locs  = sorted(keep_locs | {"Other"})
     feat_names = [f"industry:{i}" for i in all_inds] + [f"location:{l}" for l in all_locs]
 
     def featurize(job):
         return (
             [1 if (job.industry or "Other") == i else 0 for i in all_inds] +
-            [1 if (job.location or "Unknown") == l else 0 for l in all_locs]
+            [1 if group_loc(job.location or "Unknown") == l else 0 for l in all_locs]
         )
 
     X = [featurize(j["job"]) for j in labeled]
-    y = [j["mid"] for j in labeled]          # continuous salary midpoints
+    y = [j["mid"] for j in labeled]
 
-    # ── Linear Regression + cross-validation ─────────────────────────────
-    reg = LinearRegression()
+    # ── Ridge regression + cross-validation ──────────────────────────────
+    # Ridge handles high-dimensional sparse features far better than OLS
+    reg = Ridge(alpha=1.0)
     cv  = min(5, len(labeled) // 2)
     if cv >= 2:
         r2  = round(float(cross_val_score(reg, X, y, cv=cv, scoring="r2").mean()), 3)

@@ -423,8 +423,8 @@ async function loadEDA() {
       <div class="stat-card"><div class="stat-label">Total Jobs</div><div class="stat-value">${stats.total_jobs}</div><div class="stat-sub">in session</div></div>
       <div class="stat-card"><div class="stat-label">Avg Match Score</div><div class="stat-value">${stats.avg_match??'—'}%</div><div class="stat-sub">keyword overlap</div></div>
       <div class="stat-card"><div class="stat-label">Saved</div><div class="stat-value">${stats.saved}</div><div class="stat-sub">hearted jobs</div></div>
-      <div class="stat-card"><div class="stat-label">Salary Listed</div><div class="stat-value">${stats.salary_pct}%</div><div class="stat-sub">${stats.with_salary} jobs</div></div>
-      <div class="stat-card"><div class="stat-label">States</div><div class="stat-value">${Object.keys(stats.top_locations).length}</div><div class="stat-sub">locations</div></div>
+
+
       <div class="stat-card"><div class="stat-label">Industries</div><div class="stat-value">${Object.keys(stats.industry_breakdown).length}</div><div class="stat-sub">categories</div></div>
     </div>`;
 
@@ -561,14 +561,12 @@ async function loadMarket() {
   const compInds = Object.entries(ind).filter(([k])=>k!=="Other").sort((a,b)=>b[1]-a[1]);
   const remoteJobs = Object.entries(loc).filter(([k])=>/remote/i.test(k)).reduce((s,[,v])=>s+v,0);
   const remotePct  = stats.total_jobs ? Math.round(remoteJobs/stats.total_jobs*100) : 0;
-  const salCovPct  = stats.salary_pct;
   document.getElementById("marketInsights").innerHTML = `
     <strong>📌 Top demand sector:</strong> ${compInds[0]?.[0]||"—"} leads with ${compInds[0]?.[1]||0} listings (${compInds[0]?Math.round(compInds[0][1]/stats.total_jobs*100):0}% of market)<br>
     <strong>📌 Runner-up:</strong> ${compInds[1]?.[0]||"—"} with ${compInds[1]?.[1]||0} listings<br>
     <strong>📌 Best paying sector:</strong> ${topPay?.[0]||"—"} averaging $${topPay?Math.round(topPay[1]/1000)+"k":"—"}/year based on listed salaries<br>
     ${hotspot ? `<strong>🏆 Highest-paying combo:</strong> ${hotspot.industry} jobs in ${hotspot.location} average $${Math.round(hotspot.avg_salary/1000)}k/yr (${hotspot.count} listing${hotspot.count!==1?"s":""})<br>` : ""}
     <strong>📌 Remote opportunities:</strong> ${remotePct}% of listings are remote or hybrid<br>
-    <strong>📌 Salary transparency:</strong> ${salCovPct}% of jobs list a salary — the rest can be predicted by the Salary Analysis model<br>
     <strong>📌 Geographic concentration:</strong> ${topLoc?.[0]||"—"} has the most listings (${topLoc?.[1]||0} jobs), suggesting strong regional demand`;
 }
 
@@ -739,7 +737,6 @@ async function loadEvaluation() {
   if (stats.error) { el.innerHTML = `<div class="error-msg">${stats.error}</div>`; return; }
 
   const sil  = cluster.silhouette_score;
-  const cov  = stats.salary_pct;
   const avgM = stats.avg_match;
 
   el.innerHTML = `

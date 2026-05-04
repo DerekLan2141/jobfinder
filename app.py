@@ -9,6 +9,7 @@ from models import db, Job, Profile
 from services.adzuna import fetch_jobs
 
 load_dotenv()
+load_dotenv(".env.local", override=True)  # Vercel local dev credentials
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "jobfinder-dev-secret-change-in-prod")

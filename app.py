@@ -759,16 +759,14 @@ def _sal_role(title: str) -> str:
 
 @app.route("/api/dashboard/salary-prediction")
 def salary_prediction():
-    from sklearn.linear_model import RidgeCV
+    from sklearn.linear_model import Ridge
     from sklearn.model_selection import cross_val_score
-    from collections import Counter
     import numpy as np
 
     uid    = get_uid()
     jobs   = Job.query.filter_by(is_dismissed=False, session_id=uid).all()
     num_re = re.compile(r'\$([\d,]+)')
 
-    # ── Split labeled (have salary) vs unlabeled ──────────────────────────
     labeled, unlabeled = [], []
     for job in jobs:
         if job.salary:
@@ -781,59 +779,36 @@ def salary_prediction():
     if len(labeled) < 6:
         return jsonify({"error": f"Only {len(labeled)} jobs have salary data — need at least 6 to train. Try Refresh Jobs."}), 400
 
-    # ── Feature engineering ───────────────────────────────────────────────
-    # Seniority is the strongest salary predictor — keep as continuous (0/1/2)
-    # Role type captures engineer vs analyst vs manager pay bands
-    # Remote flag matters for pay scale
-    # Location: only keep states with ≥3 salary samples to avoid overfitting
-    loc_counts = Counter(j["job"].location or "Unknown" for j in labeled)
-    ind_counts = Counter(j["job"].industry or "Other" for j in labeled)
-    keep_locs  = {l for l, c in loc_counts.items() if c >= 3}
-    keep_inds  = {i for i, c in ind_counts.items() if c >= 2}  # drop singleton industries
-
-    all_inds  = sorted(keep_inds  | {"Other"})
-    all_locs  = sorted(keep_locs  | {"Other"})
-    all_roles = ["engineer","scientist","manager","analyst","designer","consultant","other"]
-
+    # ── Features: seniority + role type + remote only ─────────────────────
+    # Keeping features minimal relative to sample size prevents overfitting.
+    # Seniority (0/1/2) is the dominant salary driver; role captures pay bands.
+    all_roles  = ["engineer","scientist","manager","analyst","designer","consultant","other"]
     feat_names = (
         ["numeric:seniority", "numeric:is_remote"] +
-        [f"role:{r}"     for r in all_roles] +
-        [f"industry:{i}" for i in all_inds]  +
-        [f"location:{l}" for l in all_locs]
+        [f"role:{r}" for r in all_roles]
     )
 
     def featurize(job):
-        loc  = job.location or "Unknown"
-        ind  = job.industry  or "Other"
-        gloc = loc if loc in keep_locs else "Other"
-        gind = ind if ind in keep_inds else "Other"
-        text = (job.description_snippet or "") + " " + loc
+        text = (job.description_snippet or "") + " " + (job.location or "")
         return (
             [_sal_seniority(job.title), int("remote" in text.lower())] +
-            [1 if _sal_role(job.title) == r else 0 for r in all_roles] +
-            [1 if gind == i else 0 for i in all_inds] +
-            [1 if gloc == l else 0 for l in all_locs]
+            [1 if _sal_role(job.title) == r else 0 for r in all_roles]
         )
 
-    X = [featurize(j["job"]) for j in labeled]
-    y = [j["mid"] for j in labeled]
+    X = np.array([featurize(j["job"]) for j in labeled], dtype=float)
+    y = np.array([j["mid"] for j in labeled], dtype=float)
 
-    # ── Step 1: RidgeCV on full data to find best alpha ───────────────────
-    # Do NOT wrap RidgeCV in cross_val_score — nested CV causes negative R²
-    from sklearn.linear_model import Ridge
-    reg_cv = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 100.0, 500.0, 2000.0])
-    reg_cv.fit(X, y)
-    best_alpha = reg_cv.alpha_
-
-    # ── Step 2: evaluate Ridge(best_alpha) with held-out CV ───────────────
-    reg = Ridge(alpha=best_alpha)
-    n_folds = min(3, len(labeled) // 3)   # conservative — fewer folds = stable R²
-    if n_folds >= 2:
-        r2  = round(float(cross_val_score(reg, X, y, cv=n_folds, scoring="r2").mean()), 3)
-        mae = round(float(-cross_val_score(
-            reg, X, y, cv=n_folds, scoring="neg_mean_absolute_error").mean()))
-    else:
-        r2 = mae = None
+    # ── Ridge with fixed alpha + conservative CV ──────────────────────────
+    reg     = Ridge(alpha=10.0)
+    n_folds = min(3, len(labeled) // 3)
+    r2 = mae = None
+    if n_folds >= 2 and np.std(y) > 0:
+        try:
+            r2  = round(float(cross_val_score(reg, X, y, cv=n_folds, scoring="r2").mean()), 3)
+            mae = round(float(-cross_val_score(
+                reg, X, y, cv=n_folds, scoring="neg_mean_absolute_error").mean()))
+        except Exception:
+            pass
 
     reg.fit(X, y)
 
@@ -889,7 +864,7 @@ def salary_prediction():
         "unlabeled_count": len(unlabeled),
         "cv_r2":           r2,
         "cv_mae":          mae,
-        "cv_folds":        cv,
+        "cv_folds":        n_folds,
         "salary_mean":     round(sal_mean),
         "salary_std":      round(sal_std),
         "bell_labels":     bell_labels,
@@ -1037,7 +1012,6 @@ def dashboard_clusters():
     from sklearn.cluster import KMeans
     from sklearn.metrics import silhouette_score
     from sklearn.preprocessing import StandardScaler
-    import scipy.sparse as sp
     import numpy as np
 
     uid  = get_uid()
@@ -1051,28 +1025,31 @@ def dashboard_clusters():
 
     num_re = re.compile(r'\$([\d,]+)')
 
-    # ── Text features (TF-IDF on title + snippet) ─────────────────────────
-    texts = [f"{j.title} {j.description_snippet or ''}" for j in jobs]
-    tfidf = TfidfVectorizer(max_features=200, stop_words="english", ngram_range=(1, 2))
-    X_text = tfidf.fit_transform(texts)
+    # ── Text features (TF-IDF on title + snippet + pseudo-tokens) ─────────
+    # Append seniority/role/industry as tokens so structure affects clustering
+    # without needing scipy.sparse for hstacking numeric features.
+    def _job_text(j):
+        sen_tok = ["junior_level", "midlevel_level", "senior_level"][_sal_seniority(j.title)]
+        role_tok = f"{_sal_role(j.title)}_role"
+        ind_tok  = (j.industry or "other").lower().replace(" ", "_") + "_industry"
+        return f"{j.title} {j.description_snippet or ''} {sen_tok} {role_tok} {ind_tok}"
+
+    texts = [_job_text(j) for j in jobs]
+    tfidf = TfidfVectorizer(max_features=300, stop_words="english", ngram_range=(1, 2))
+    X_text = tfidf.fit_transform(texts).toarray()
     feat_text = list(tfidf.get_feature_names_out())
 
-    # ── Numeric features (seniority, match score, salary, remote) ─────────
+    # ── Numeric features (match score, salary) weighted alongside TF-IDF ──
     numeric = []
     for j in jobs:
-        seniority  = _sal_seniority(j.title)
-        match      = calc_match_score(j, p_skills, p_titles) if p_skills else 85
-        is_remote  = int("remote" in (j.location or "").lower()
-                         or "remote" in (j.description_snippet or "").lower())
-        nums = [int(n.replace(",","")) for n in num_re.findall(j.salary or "")]
-        sal_mid = (sum(nums)/len(nums)/1000) if nums else 0.0  # in $k, 0 if unknown
-        numeric.append([seniority, match / 100.0, is_remote, sal_mid / 150.0])
+        match   = calc_match_score(j, p_skills, p_titles) if p_skills else 85
+        nums    = [int(n.replace(",","")) for n in num_re.findall(j.salary or "")]
+        sal_mid = (sum(nums)/len(nums)/1000) if nums else 0.0
+        numeric.append([match / 100.0, sal_mid / 150.0])
 
-    scaler  = StandardScaler()
-    X_num   = scaler.fit_transform(numeric)
-    # Weight numeric 2× so they contribute meaningfully alongside TF-IDF
-    X_num_s = sp.csr_matrix(X_num * 2.0)
-    X       = sp.hstack([X_text, X_num_s])
+    scaler = StandardScaler()
+    X_num  = scaler.fit_transform(numeric) * 2.0  # weight 2× vs TF-IDF
+    X      = np.hstack([X_text, X_num])
 
     # ── Auto-select K by silhouette ────────────────────────────────────────
     min_size = max(3, len(jobs) // 8)
@@ -1123,9 +1100,11 @@ def dashboard_clusters():
             "top_terms":   [],  # populated below from TF-IDF center
         }
 
+    n_text = len(feat_text)  # number of TF-IDF features (before numeric columns)
+
     if best_k == 1:
         cluster = _build_cluster(jobs)
-        centroid = np.asarray(X_text.mean(axis=0)).flatten()
+        centroid = X_text.mean(axis=0).flatten()
         cluster["top_terms"] = [feat_text[i] for i in centroid.argsort()[-8:][::-1]]
         return jsonify({
             "clusters": [cluster], "n_clusters": 1,
@@ -1134,12 +1113,12 @@ def dashboard_clusters():
         })
 
     clusters = []
-    text_centers = np.asarray(X_text.toarray())
     for i in range(best_k):
         idxs    = [j for j in range(len(jobs)) if best_labels[j] == i]
         members = [jobs[j] for j in idxs]
         c       = _build_cluster(members)
-        center_text = text_centers[idxs].mean(axis=0)
+        # Use only the TF-IDF columns (first n_text cols) to find top terms
+        center_text = X_text[idxs].mean(axis=0)
         c["top_terms"] = [feat_text[j] for j in center_text.argsort()[-8:][::-1]]
         clusters.append(c)
     clusters.sort(key=lambda x: x["count"], reverse=True)
